@@ -1,5 +1,22 @@
 {
+    "name": "phlite/phlite",
+    "description": "Ultra lightweight PHP web application framework",
+    "version": "0.0.1",
+    "license": "MIT",
+
+    "authors": [
+        {
+            "name": "Jared Hancock",
+            "email": "gravydish@gmail.com",
+            "role": "Developer"
+        }
+    ],
+
     "require": {
-        "twig/twig": "*"
+        "php": ">= 5.4.0",
+        "twig/twig": ">= 1.16, < 2.0"
+    },
+    "autoload": {
+        "psr-4": {"Phlite\\": "src/"}
     }
 }
