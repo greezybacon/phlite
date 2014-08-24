@@ -2,6 +2,8 @@
 
 namespace Phlite\Dispatch;
 
+use Phlite\Request\HttpResponse;
+
 /**
  * URL resolver and dispatcher. It's meant to be quite lightweight, so the
  * functions aren't separated
@@ -11,7 +13,7 @@ class Dispatcher {
     var $file = false;
     var $urls = false;
 
-    function Dispatcher($file=false) {
+    function __construct($file=false) {
         if (is_array($file)) {
             $this->urls = $file;
         }
@@ -21,25 +23,29 @@ class Dispatcher {
         }
     }
 
-    function resolve($url, $args=null) {
+    function resolve($url, $args=array()) {
         if ($this->file) { $this->lazy_load(); }
-        # Support HTTP method emulation with the _method GET argument
-        if (isset($_GET['_method'])) {
-            $_SERVER['REQUEST_METHOD'] = strtoupper($_GET['_method']);
-            unset($_GET['_method']);
-        }
-        foreach ($this->urls as $matcher) {
-            if ($matcher->matches($url)) {
-                return $matcher->dispatch($url, $args);
+        foreach ($this->urls as $route) {
+            if ($match = $route->matches($url)) {
+                return $match->getView($this, $args);
             }
         }
-        Http::response(400, "URL not supported");
+        throw new Exception\UnsupportedUrl($url . ': Url does not map to a view');
     }
+    
     /**
      * Returns the url for the given function and arguments (arguments
      * aren't declared, but will be handled
      */
-    function reverse($func) { }
+    function reverse($func, $args=array()) { 
+		$r = new Reverser($this);
+		return $r->reverse($func, $args);
+	}
+	
+	function getUrls() {
+		return $this->urls;
+	}
+    
     /**
      * Add the url to the list of supported URLs
      */
@@ -47,6 +53,7 @@ class Dispatcher {
         if ($prefix) { $url->setPrefix($prefix); }
         array_push($this->urls, $url);
     }
+    
     /**
      * Add the urls from another dispatcher onto this one
      */
@@ -55,7 +62,7 @@ class Dispatcher {
         /* allow inlining / chaining */ return $this;
     }
 
-    /* static */ function include_urls($file, $absolute=false, $lazy=true) {
+    static function include_urls($file, $absolute=false, $lazy=true) {
         if (!$absolute) {
             # Fetch the working path of the caller
             $bt = debug_backtrace();

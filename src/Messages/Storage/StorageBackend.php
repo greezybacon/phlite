@@ -2,7 +2,7 @@
 
 namespace Phlite\Messages\Storage;
 
-interface StorageBackend extends IteratorAggregate {
+interface StorageBackend extends \IteratorAggregate {
 
     function setLevel($level);
     function getLevel();

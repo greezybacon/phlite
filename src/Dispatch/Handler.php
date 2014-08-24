@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Request;
+namespace Phlite\Dispatch;
 
 interface Handler {
 

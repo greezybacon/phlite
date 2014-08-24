@@ -4,12 +4,13 @@ namespace Phlite\Messages;
 
 use Phlite\Messages\Messages;
 use Phlite\Project;
+use Phlite\Request\Middleware;
 
 class MessageMiddleware extends Middleware {
 
     function processRequest($request) {
         // TODO: Load message storage backend and add to request
-        $bk = Project::getSettings()->get('MESSAGE_STORAGE',
+        $bk = $request->getSettings()->get('MESSAGE_STORAGE',
             'Phlite\Messages\Storage\SessionStorage');
         $request->messages = new $bk($request);
     }
@@ -26,7 +27,7 @@ class MessageMiddleware extends Middleware {
     function processResponse($request, $response) {
         if (isset($request->messages)) {
             $unsaved = $request->messages->update($response);
-            if ($unsaved && Project::getSettings()->get('DEBUG')) {
+            if ($unsaved && $request->getSettings()->get('DEBUG')) {
                 throw new RuntimeException(
                     'Not all messages could be saved');
             }

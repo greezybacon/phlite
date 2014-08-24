@@ -36,7 +36,7 @@ $DATABASES = [
 # Applications --------------------------
 
 $APPLICATIONS = [
-    'Project\Application1',
+    'short' => 'Project\Application1',
 ];
 $TEMPLATE_DIRS = [ 'Templates', ];
 $TEMPLATE_CONTEXT_PROCESSORS = [
@@ -50,7 +50,7 @@ $TEMPLATE_LOADERS = [
 
 # Request handling ----------------------
 
-$HANDLER = 'Request\Handlers\Apache\Apache';
+$HANDLER = 'Phlite\Request\Handlers\ApacheHandler';
 $MIDDLEWARE_CLASSES = [
     'Phlite\Request\Middleware\DbMiddleware',
     'Phlite\Request\Middleware\SessionMiddleware',
@@ -59,4 +59,4 @@ $MIDDLEWARE_CLASSES = [
 
 # Other stuff ---------------------------
 
-$SECRET_KEY = 'sdfghjk23refydghb';
+$SECRET_KEY = '{{ random_string(64) }}';

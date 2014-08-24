@@ -1,34 +1,16 @@
 <?php
 
-namespace Phlite\Request;
+namespace Phlite;
 
-class Session implements ArrayAccess {
+use Phlite\Util\Dict;
+
+class Session extends Dict {
 
     var $root;
-    var $session;
 
     function __construct($root=':s') {
         $this->root = $root;
-        $this->session = &$_SESSION[$root];
+        parent::__construct();
+        $this->storage = &$_SESSION[$root];
     }
-
-    function offsetGet($key) {
-        return $this->session[$key];
-    }
-
-    function offsetSet($key, &$value) {
-        $this->session[$key] = &$value;
-    }
-
-    function offsetExists($key) {
-        return isset($this->session[$key]);
-    }
-
-    function offsetUnset($key) {
-        unset($this->session[$key]);
-    }
-}
-
-class SessionMiddleware extends Middleware {
-    
 }

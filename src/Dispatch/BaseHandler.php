@@ -2,17 +2,28 @@
 
 namespace Phlite\Dispatch;
 
-use Phlite\Request\BaseRequest;
+use Phlite\Http\Exception\Http404;
+use Phlite\Http\Exception\HttpException;
+use Phlite\Project;
+use Phlite\Request\Request;
+use Phlite\Request\MiddlewareList;
+use Phlite\Signal;
+use Phlite\View\ErrorView;
 
 abstract class BaseHandler implements Handler {
 
-    private $middleware;
+    protected $middleware;
+    protected $project;
+    
+    function __construct(Project $project) {
+        $this->project = $project;
+    }
 
     /**
      * Launches a new request. This would be the main entry for a Phlite
      * framework handled request.
      */
-    function invoke() {
+    function __invoke() {
         Signal::connect('php.fatal', array($this, '__onShutdown'));
         Signal::connect('php.exception', array($this, '__onUnhandledException'));
 
@@ -24,47 +35,49 @@ abstract class BaseHandler implements Handler {
             $response = $this->getResponse($request);
         }
         catch (UnicodeException $ex) {
-            $response = HttpResponseBadRequest();
+            $response = new HttpResponseBadRequest();
+        }
+        catch (HttpException $ex) {
+            $response = $ex->getResponse($request);
         }
 
         $response->setHandler($this);
-        return $response;
+        return $response->output();
     }
 
     function loadMiddleware() {
         $this->middleware = new MiddlewareList();
-        foreach ($this->config->middleware_classes as $c) {
+        foreach ($this->project->getSettings()->get('MIDDLEWARE_CLASSES', []) as $c) {
             $this->middleware[] = new $c();
         }
     }
 
     function getRequest() {
-        return new BaseRequest();
+        return new Request($this);
     }
 
     function getResponse($request) {
-        $resp = $this->middleware->processRequest($this);
+        $resp = $this->middleware->processRequest($request);
         if ($resp instanceof Response)
             return $resp;
 
         // Resolve the view for this request
-        $disp = new Dispatcher();
+        $disp = new Dispatcher($this->project->getUrls());
         $view = $disp->resolve($request->getPath());
         if (!$view)
             // TODO: Server some error page
-            $view = ErrorView::lookup(404, 'Broken link');
+            throw new Http404('Broken link');
 
         $this->middleware->processView($request, $view);
 
-        $response = $view->invoke();
+        $response = $view($request);
         if ($response instanceof TemplateResponse) {
-            // Todo: Load context processors
             $this->middleware->processTemplateResponse($request, $response);
             $response = $response->render($request);
         }
 
         $this->middleware->reverse()->processResponse($request, $response);
-
+var_dump($disp->reverse('Management\Views\World'));
         return $response;
     }
 
@@ -75,9 +88,13 @@ abstract class BaseHandler implements Handler {
         if (isset($_SERVER['ORIG_PATH_INFO']))
             return $_SERVER['ORIG_PATH_INFO'];
 
-        // TODO: conruct possible path info.
+        // TODO: construct possible path info.
 
         return null;
+    }
+    
+    function getProject() {
+        return $this->project;
     }
 
     function __onShutdown() {

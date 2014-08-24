@@ -48,7 +48,8 @@ class PhoneField extends Field {
     function parse($value) {
         // NOTE: Value may have a legitimate 'X' to separate the number and
         // extension parts. Don't remove the 'X'
-        return preg_replace('/[^\dX]/', '', $value);
+        $digits = preg_replace('/[^\dX]/', '', $value);
+        return $digits ?: $value;
     }
 
     function toString($value) {

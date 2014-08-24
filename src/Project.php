@@ -2,21 +2,28 @@
 
 namespace Phlite;
 
+use Phlite\Project\Settings;
+
 /**
  * Class: Project
  *
  * The project is the top-level equipment for Phlite project. It contains
  * the root information for all the applications installed
  */
-abstract class Project {
+class Project {
 
     var $settings_file = '';
+    
+    static $global_settings = 'Phlite\Project\DefaultSettings';
 
-    private $settings;
+    protected $settings;
+    protected $applications = array();
 
-    function __construct() {
-        $this->settings = new Settings();
-        $this->loadSettings();
+    function __construct($settings=false) {
+        $this->settings = new $this::$global_settings();
+        if ($settings)
+            $this->loadSettings($settings);
+		spl_autoload_register(array($this, '_autoload'));
     }
 
     /**
@@ -27,8 +34,20 @@ abstract class Project {
      * function can be overridden to return the list directly
      */
     function getApplications() {
-        return $this->getSettings()->get('applications');
+        if (!$this->applications) {
+            foreach ($this->settings->get('APPLICATIONS') as $app_class) {
+                $app = new $app_class($this);
+                $this->applications[$app->getNamespace()] = $app;
+            }
+        }
+        return $this->applications;
     }
+
+	function _autoload($class) {
+		$path = explode('\\', $class);
+		$path = implode('/', $path) . '.php';
+		return (include $path);
+	}
 
     // -------- SETTINGS ----------------------------
     function getSettings() {
@@ -36,6 +55,7 @@ abstract class Project {
     }
 
     function loadSettings($filename=false) {
+        $this->settings->loadFile($filename);
     }
 
     // -------- DATABASE ----------------------------
@@ -58,6 +78,10 @@ abstract class Project {
             'Phlite\Request\Middleware\AuthMiddleware',
             'Phlite\Request\Middleware\CsrfMiddleware',
         );
+    }
+    
+    function getUrls() {
+        return $this->getSettings()->get('URLS') ?: (include 'urls.php');
     }
     
 }

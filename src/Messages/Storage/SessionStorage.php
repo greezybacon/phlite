@@ -7,8 +7,8 @@ use Phlite\Messages\Storage\BaseStorage;
 class SessionStorage extends BaseStorage {
 
     function __construct($request) {
-        parent::__construct();
-        $this->list = &$request->session[':msgs'];
+        parent::__construct($request);
+        $this->list = &$request->session->setDefault(':msgs', []);
     }
 
     function get() {

@@ -2,7 +2,8 @@
 
 namespace Phlite\Request\Middleware;
 
-use Phlite\Request\Session;
+use Phlite\Session;
+use Phlite\Request\Middleware;
 
 class SessionMiddleware extends Middleware {
 

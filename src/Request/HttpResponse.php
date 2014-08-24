@@ -2,8 +2,10 @@
 
 namespace Phlite\Request;
 
-class HttpResponse {
-    
+class HttpResponse extends BaseResponse {
+
+    var $headers = array();
+
     function __construct($stream, $status=200, $type='text/html') {
         $this->body = $stream;
         $this->status = $status;
@@ -34,11 +36,13 @@ class HttpResponse {
         $length = ($this->body instanceof BaseString)
             ? $this->body->getLength() : strlen($this->body);
 
-        header('HTTP/1.1 '.self::header_code_verbose($code));
-		header('Status: '.self::header_code_verbose($code)."\r\n");
+        header('HTTP/1.1 '.self::header_code_verbose($this->status));
+		header('Status: '.self::header_code_verbose($this->type)."\r\n");
 		header("Content-Type: $this->type; charset=$charset\r\n");
-        header('Content-Length: '.$length."\r\n\r\n");
-       	echo (string) $body;
+        //header('Content-Length: '.$length."\r\n\r\n
+		foreach ($this->headers as $name=>$content)
+			header("$name: $content\r\n");
+       	echo (string) $this->body;
     }
 
     static function forStatus($status, $message=null, $type='text/html') {

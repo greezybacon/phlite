@@ -3,8 +3,9 @@
 namespace Phlite\Request;
 
 use Phlite\Request\HttpResponse;
+use Phlite\Util\Queue;
 
-class MiddlewareList extends ArrayObject {
+class MiddlewareList extends Queue {
 
     function processRequest($request) {
         foreach ($this as $mw) {
@@ -26,9 +27,14 @@ class MiddlewareList extends ArrayObject {
         }
     }
 
+    function processResponse($request, $response) {
+        foreach ($this as $mw) {
+            $mw->processResponse($request, $response);
+        }
+    }
+
     function reverse() {
-        $items = array_reverse(array($this));
-        return new MiddlewareList($items);
+        return new MiddlewareList(parent::reverse());
     }
 
 }

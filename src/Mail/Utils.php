@@ -2,14 +2,15 @@
 
 namespace Phlite\Mail;
 
+use Phlite\Project;
 
 function mail_admins($subject, $body, $attachments=array(),
         $options=array()) {
 
-    $settings = Phlite\Project::getGlobalSettings();
+    $settings = Project::currentProject()->getSettings();
     $recipients = $settings['ADMINS'];
 
     // TODO: Massage the recipients list format
-    namespace\Mailer::send($recipients, $subject, $body, $attachments,
+    Mailer::send($recipients, $subject, $body, $attachments,
         $options);
 }
