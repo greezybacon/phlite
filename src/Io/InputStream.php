@@ -3,7 +3,7 @@
 namespace Phlite\Io;
 
 interface InputStream
-    extends Iterator {
+    extends \Iterator {
 
     function read($size=0);
     function readline();
