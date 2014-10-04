@@ -2,19 +2,24 @@
 
 namespace Phlite\Db;
 
-class QuerySet implements IteratorAggregate, ArrayAccess {
+class QuerySet implements \IteratorAggregate, \ArrayAccess {
     var $model;
 
     var $constraints = array();
-    var $exclusions = array();
     var $ordering = array();
     var $limit = false;
     var $offset = 0;
     var $related = array();
     var $values = array();
+    var $defer = array();
+    var $annotations = array();
+    var $lock = false;
 
-    var $compiler = 'MySqlCompiler';
-    var $iterator = 'ModelInstanceIterator';
+    const LOCK_EXCLUSIVE = 1;
+    const LOCK_SHARED = 2;
+
+    var $compiler = 'Phlite\Db\Backends\MySql\Compiler';
+    var $iterator = 'ModelInstanceManager';
 
     var $params;
     var $query;
@@ -25,17 +30,32 @@ class QuerySet implements IteratorAggregate, ArrayAccess {
 
     function filter() {
         // Multiple arrays passes means OR
-        $this->constraints[] = func_get_args();
+        foreach (func_get_args() as $Q) {
+            $this->constraints[] = $Q instanceof Util\Q ? $Q : new Util\Q($Q);
+        }
         return $this;
     }
 
     function exclude() {
-        $this->exclusions[] = func_get_args();
+        foreach (func_get_args() as $Q) {
+            $this->constraints[] = $Q instanceof Util\Q ? $Q->negate() : Util\Q::not($Q);
+        }
+        return $this;
+    }
+
+    function defer() {
+        foreach (func_get_args() as $f)
+            $this->defer[$f] = true;
         return $this;
     }
 
     function order_by() {
         $this->ordering = array_merge($this->ordering, func_get_args());
+        return $this;
+    }
+
+    function lock($how=false) {
+        $this->lock = $how ?: self::LOCK_EXCLUSIVE;
         return $this;
     }
 
@@ -57,17 +77,40 @@ class QuerySet implements IteratorAggregate, ArrayAccess {
     function values() {
         $this->values = func_get_args();
         $this->iterator = 'HashArrayIterator';
+        // This disables related models
+        $this->related = false;
         return $this;
     }
 
     function values_flat() {
         $this->values = func_get_args();
         $this->iterator = 'FlatArrayIterator';
+        // This disables related models
+        $this->related = false;
         return $this;
     }
 
     function all() {
         return $this->getIterator()->asArray();
+    }
+
+    function first() {
+        $list = $this->limit(1)->all();
+        return $list[0];
+    }
+
+    function one() {
+        $list = $this->all();
+        return $list[0];
+        if (count($list) == 0)
+            throw new Exception\DoesNotExist();
+        elseif (count($list) > 1)
+            throw new Exception\ObjectNotUnique('One object was expected; however '
+                .'multiple objects in the database matched the query. '
+                .sprintf('In fact, there are %d matching objects.', count($list))
+            );
+        // TODO: Throw error if more than one result from database
+        return $list[0];
     }
 
     function count() {
@@ -76,8 +119,47 @@ class QuerySet implements IteratorAggregate, ArrayAccess {
         return $compiler->compileCount($this);
     }
 
-    function exists() {
+    function exists($fetch=false) {
+        if ($fetch) {
+            return (bool) $this[0];
+        }
         return $this->count() > 0;
+    }
+
+    function annotate($annotations) {
+        if (!is_array($annotations))
+            $annotations = func_get_args();
+        foreach ($annotations as $name=>$A) {
+            if ($A instanceof Util\Aggregate) {
+                if (is_int($name))
+                    $name = $A->getFieldName();
+                $A->setAlias($name);
+                $this->annotations[$name] = $A;
+            }
+        }
+        return $this;
+    }
+
+    function delete() {
+        $class = $this->compiler;
+        $compiler = new $class();
+        // XXX: Mark all in-memory cached objects as deleted
+        $ex = $compiler->compileBulkDelete($this);
+        $ex->execute();
+        return $ex->affected_rows();
+    }
+
+    function update(array $what) {
+        $class = $this->compiler;
+        $compiler = new $class;
+        $ex = $compiler->compileBulkUpdate($this, $what);
+        $ex->execute();
+        return $ex->affected_rows();
+    }
+
+    function __clone() {
+        unset($this->_iterator);
+        unset($this->query);
     }
 
     // IteratorAggregate interface
@@ -96,14 +178,14 @@ class QuerySet implements IteratorAggregate, ArrayAccess {
         return $this->getIterator()->offsetGet($offset);
     }
     function offsetUnset($a) {
-        throw new Exception('QuerySet is read-only');
+        throw new \Exception(__('QuerySet is read-only'));
     }
     function offsetSet($a, $b) {
-        throw new Exception('QuerySet is read-only');
+        throw new \Exception(__('QuerySet is read-only'));
     }
 
     function __toString() {
-        return (string)$this->getQuery();
+        return (string) $this->getQuery();
     }
 
     function getQuery($options=array()) {
@@ -114,6 +196,10 @@ class QuerySet implements IteratorAggregate, ArrayAccess {
         $model = $this->model;
         if (!$this->ordering && isset($model::$meta['ordering']))
             $this->ordering = $model::$meta['ordering'];
+        if (!$this->related && $model::$meta['select_related'])
+            $this->related = $model::$meta['select_related'];
+        if (!$this->defer && $model::$meta['defer'])
+            $this->defer = $model::$meta['defer'];
 
         $class = $this->compiler;
         $compiler = new $class($options);

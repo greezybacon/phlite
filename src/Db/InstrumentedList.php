@@ -2,7 +2,7 @@
 
 namespace Phlite\Db;
 
-class InstrumentedList extends ModelInstanceIterator {
+class InstrumentedList extends ModelInstanceManager {
     var $key;
     var $id;
     var $model;
@@ -17,16 +17,44 @@ class InstrumentedList extends ModelInstanceIterator {
             $this->resource = null;
     }
 
-    function add($object) {
+    function add($object, $at=false) {
         if (!$object || !$object instanceof $this->model)
-            throw new Exception('Attempting to add invalid object to list');
+            throw new Exception\OrmError(__('Attempting to add invalid object to list'));
 
-        $object->{$this->key} = $this->id;
+        $object->set($this->key, $this->id);
         $object->save();
-        $this->list[] = $object;
+
+        if ($at !== false)
+            $this->cache[$at] = $object;
+        else
+            $this->cache[] = $object;
     }
     function remove($object) {
         $object->delete();
+    }
+
+    function reset() {
+        $this->cache = array();
+    }
+
+    // QuerySet delegates
+    function count() {
+        return $this->queryset->count();
+    }
+    function exists() {
+        return $this->queryset->exists();
+    }
+    function expunge() {
+        if ($this->queryset->delete())
+            $this->reset();
+    }
+    function update(array $what) {
+        return $this->queryset->update($what);
+    }
+
+    // Fetch a new QuerySet
+    function objects() {
+        return clone $this->queryset;
     }
 
     function offsetUnset($a) {
@@ -36,6 +64,11 @@ class InstrumentedList extends ModelInstanceIterator {
     function offsetSet($a, $b) {
         $this->fillTo($a);
         $this->cache[$a]->delete();
-        $this->add($b);
+        $this->add($b, $a);
+    }
+
+    // QuerySet overriedes
+    function __call($func, $args) {
+        return call_user_func_array(array($this->objects(), $func), $args);
     }
 }

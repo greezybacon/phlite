@@ -2,36 +2,21 @@
 
 namespace Phlite\Db;
 
-class ModelInstanceIterator implements Iterator, ArrayAccess {
-    var $model;
+abstract class ResultSet implements \Iterator, \ArrayAccess {
     var $resource;
-    var $cache = array();
     var $position = 0;
     var $queryset;
+    var $cache = array();
 
     function __construct($queryset=false) {
+        $this->queryset = $queryset;
         if ($queryset) {
             $this->model = $queryset->model;
             $this->resource = $queryset->getQuery();
         }
     }
 
-    function buildModel($row) {
-        // TODO: Traverse to foreign keys
-        return new $this->model($row); # nolint
-    }
-
-    function fillTo($index) {
-        while ($this->resource && $index >= count($this->cache)) {
-            if ($row = $this->resource->getArray()) {
-                $this->cache[] = $this->buildModel($row);
-            } else {
-                $this->resource->close();
-                $this->resource = null;
-                break;
-            }
-        }
-    }
+    abstract function fillTo($index);
 
     function asArray() {
         $this->fillTo(PHP_INT_MAX);
@@ -67,9 +52,9 @@ class ModelInstanceIterator implements Iterator, ArrayAccess {
         return $this->cache[$offset];
     }
     function offsetUnset($a) {
-        throw new Exception(sprintf('%s is read-only', get_class($this)));
+        throw new \Exception(sprintf(__('%s is read-only'), get_class($this)));
     }
     function offsetSet($a, $b) {
-        throw new Exception(sprintf('%s is read-only', get_class($this)));
+        throw new \Exception(sprintf(__('%s is read-only'), get_class($this)));
     }
 }

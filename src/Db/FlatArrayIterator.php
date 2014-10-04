@@ -2,16 +2,14 @@
 
 namespace Phlite\Db;
 
-use Phlite\Db\ModelInstanceIterator;
-
-class FlatArrayIterator extends ModelInstanceIterator {
+class FlatArrayIterator extends ResultSet {
     function __construct($queryset) {
         $this->resource = $queryset->getQuery();
     }
     function fillTo($index) {
         while ($this->resource && $index >= count($this->cache)) {
             if ($row = $this->resource->getRow()) {
-                $this->cache += $row;
+                $this->cache[] = $row;
             } else {
                 $this->resource->close();
                 $this->resource = null;

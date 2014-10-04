@@ -63,10 +63,22 @@ class SqlCompiler {
      *
      * If no comparison function is declared in the field descriptor,
      * 'exact' is assumed.
+     *
+     * Parameters:
+     * $field - (string) name of the field to join
+     * $model - (VerySimpleModel) root model for references in the $field
+     *      parameter
+     * $options - (array) extra options for the compiler
+     *      'table' => return the table alias rather than the field-name
+     *      'model' => return the target model class rather than the operator
+     *      'constraint' => extra constraint for join clause
+     *
+     * Returns:
+     * (mixed) Usually array<field-name, operator> where field-name is the
+     * name of the field in the destination model, and operator is the
+     * requestion comparison method.
      */
     function getField($field, $model, $options=array()) {
-        $joins = array();
-
         // Break apart the field descriptor by __ (double-underbars). The
         // first part is assumed to be the root field in the given model.
         // The parts after each of the __ pieces are links to other tables.
@@ -83,34 +95,55 @@ class SqlCompiler {
         }
 
         $path = array();
-        $crumb = '';
-        $alias = $this->quote($model::$meta['table']);
 
-        // Traverse through the parts and establish joins between the tables
-        // if the field is joined to a foreign model
-        if (count($parts) && isset($model::$meta['joins'][$parts[0]])) {
-            // Call pushJoin for each segment in the join path. A new
-            // JOIN fragment will need to be emitted and/or cached
-            foreach ($parts as $p) {
-                $path[] = $p;
-                $tip = implode('__', $path);
-                $info = $model::$meta['joins'][$p];
-                $alias = $this->pushJoin($crumb, $tip, $model, $info);
-                // Roll to foreign model
-                foreach ($info['constraint'] as $local => $foreign) {
-                    list($model, $f) = explode('.', $foreign);
-                    if (class_exists($model))
-                        break;
-                }
-                $crumb = $tip;
+        // Determine the alias for the root model table
+        $alias = (isset($this->joins['']))
+            ? $this->joins['']['alias']
+            : $this->quote($model::$meta['table']);
+
+        // Call pushJoin for each segment in the join path. A new JOIN
+        // fragment will need to be emitted and/or cached
+        $push = function($p, $path, $extra=false) use (&$model) {
+            $model::_inspect();
+            if (!($info = $model::$meta['joins'][$p])) {
+                throw new Exception\OrmError(sprintf(
+                   'Model `%s` does not have a relation called `%s`',
+                    $model, $p));
             }
+            $crumb = implode('__', $path);
+            $path[] = $p;
+            $tip = implode('__', $path);
+            $alias = $this->pushJoin($crumb, $tip, $model, $info, $extra);
+            // Roll to foreign model
+            foreach ($info['constraint'] as $local => $foreign) {
+                list($model, $f) = explode('.', $foreign);
+                if (class_exists($model))
+                    break;
+            }
+            return array($alias, $f);
+        };
+
+        foreach ($parts as $i=>$p) {
+            list($alias) = $push($p, $path, @$options['constraint']);
+            $path[] = $p;
         }
+
+        // If comparing a relationship, join the foreign table
+        // This is a comparison with a relationship — use the foreign key
+        if (isset($model::$meta['joins'][$field])) {
+            list($alias, $field) = $push($field, $path, @$options['constraint']);
+        }
+
         if (isset($options['table']) && $options['table'])
             $field = $alias;
+        elseif (isset($this->annotations[$field]))
+            $field = $this->annotations[$field];
         elseif ($alias)
             $field = $alias.'.'.$this->quote($field);
         else
             $field = $this->quote($field);
+        if (isset($options['model']) && $options['model'])
+            $operator = $model;
         return array($field, $operator);
     }
 
@@ -122,14 +155,14 @@ class SqlCompiler {
      * algorithm is short-circuited and the originally-assigned table alias
      * is returned immediately.
      */
-    function pushJoin($tip, $path, $model, $info) {
+    function pushJoin($tip, $path, $model, $info, $constraint=false) {
         // TODO: Build the join statement fragment and return the table
         // alias. The table alias will be useful where the join is used in
         // the WHERE and ORDER BY clauses
 
         // If the join already exists for the statement-being-compiled, just
         // return the alias being used.
-        if (isset($this->joins[$path]))
+        if (!$constraint && isset($this->joins[$path]))
             return $this->joins[$path]['alias'];
 
         // TODO: Support only using aliases if necessary. Use actual table
@@ -147,36 +180,87 @@ class SqlCompiler {
         // TODO: Always use a table alias. This will further help with
         // coordination between the data returned from the database (where
         // table alias is available) and the corresponding data.
-        $this->joins[$path] = array(
-            'alias' => $alias,
-            'sql'=> $this->compileJoin($tip, $model, $alias, $info),
-        );
+        $T = array('alias' => $alias);
+        $this->joins[$path] = &$T;
+        $T['sql'] = $this->compileJoin($tip, $model, $alias, $info, $constraint);
         return $alias;
     }
 
-    function compileWhere($where, $model) {
-        $constraints = array();
-        foreach ($where as $constraint) {
-            $filter = array();
-            foreach ($constraint as $field=>$value) {
+    /**
+     * compileQ
+     *
+     * Build a constraint represented in an arbitrarily nested Q instance.
+     * The placement of the compiled constraint is also considered and
+     * represented in the resulting CompiledExpression instance.
+     *
+     * Parameters:
+     * $Q - (Q) constraint represented in a Q instance
+     * $model - (VerySimpleModel) root model for all the field references in
+     *      the Q instance
+     * $slot - (int) slot for inputs to be placed. Useful to differenciate
+     *      inputs placed in the joins and where clauses for SQL engines
+     *      which do not support named parameters.
+     *
+     * Returns:
+     * (CompiledExpression) object containing the compiled expression (with
+     * AND, OR, and NOT operators added). Furthermore, the $type attribute
+     * of the CompiledExpression will allow the compiler to place the
+     * constraint properly in the WHERE or HAVING clause appropriately.
+     */
+    function compileQ(Util\Q $Q, $model, $slot=false) {
+        $filter = array();
+        $type = CompiledExpression::TYPE_WHERE;
+        foreach ($Q->constraints as $field=>$value) {
+            // Handle nested constraints
+            if ($value instanceof Util\Q) {
+                $filter[] = $T = $this->compileQ($value, $model, $slot);
+                // Bubble up HAVING constraints
+                if ($T instanceof CompiledExpression
+                        && $T->type == CompiledExpression::TYPE_HAVING)
+                    $type = $T->type;
+            }
+            // Handle relationship comparisons with model objects
+            elseif ($value instanceof ModelBase) {
+                $criteria = array();
+                foreach ($value->pk as $f=>$v) {
+                    $f = $field . '__' . $f;
+                    $criteria[$f] = $v;
+                }
+                $filter[] = $this->compileQ(new Q($criteria), $model, $slot);
+            }
+            // Handle simple field = <value> constraints
+            else {
                 list($field, $op) = $this->getField($field, $model);
-                // Allow operators to be callable rather than sprintf
-                // strings
+                if ($field instanceof Util\Aggregate) {
+                    // This constraint has to go in the HAVING clause
+                    $field = $field->toSql($this, $model);
+                    $type = CompiledExpression::TYPE_HAVING;
+                }
                 if ($value === null)
                     $filter[] = sprintf('%s IS NULL', $field);
+                // Allow operators to be callable rather than sprintf
+                // strings
                 elseif (is_callable($op))
-                    $filter[] = call_user_func($op, $field, $value);
+                    $filter[] = call_user_func($op, $field, $value, $model);
                 else
-                    $filter[] = sprintf($op, $field, $this->input($value));
+                    $filter[] = sprintf($op, $field, $this->input($value, $slot));
             }
-            // Multiple constraints here are ANDed together
-            $constraints[] = implode(' AND ', $filter);
         }
-        // Multiple constrains here are ORed together
-        $filter = implode(' OR ', $constraints);
-        if (count($constraints) > 1)
-            $filter = '(' . $filter . ')';
-        return $filter;
+        $glue = $Q->isOred() ? ' OR ' : ' AND ';
+        $clause = implode($glue, $filter);
+        if (count($filter) > 1)
+            $clause = '(' . $clause . ')';
+        if ($Q->isNegated())
+            $clause = 'NOT '.$clause;
+        return new CompiledExpression($clause, $type);
+    }
+
+    function compileConstraints($where, $model) {
+        $constraints = array();
+        foreach ($where as $Q) {
+            $constraints[] = $this->compileQ($Q, $model);
+        }
+        return $constraints;
     }
 
     function getParams() {
@@ -197,4 +281,3 @@ class SqlCompiler {
         return $alias;
     }
 }
-
