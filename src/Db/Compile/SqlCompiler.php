@@ -2,20 +2,28 @@
 
 namespace Phlite\Db;
 
-class SqlCompiler {
+abstract class SqlCompiler {
+
+    // Consts for ::input()
+    const SLOT_JOINS = 1;
+    const SLOT_WHERE = 2;
+
     var $options = array();
-    var $params = array();
     var $joins = array();
     var $aliases = array();
     var $alias_num = 1;
+
+    protected $params = array();
+    protected $conn;
 
     static $operators = array(
         'exact' => '%$1s = %$2s'
     );
 
-    function __construct($options=false) {
+    function __construct(Connection $conn, $options=false) {
         if ($options)
             $this->options = array_merge($this->options, $options);
+        $this->conn = $conn;
     }
 
     /**
@@ -185,6 +193,8 @@ class SqlCompiler {
         $T['sql'] = $this->compileJoin($tip, $model, $alias, $info, $constraint);
         return $alias;
     }
+    
+    abstract function compileJoin($tip, $model, $alias, $info, $extra=false);
 
     /**
      * compileQ
@@ -198,7 +208,7 @@ class SqlCompiler {
      * $model - (VerySimpleModel) root model for all the field references in
      *      the Q instance
      * $slot - (int) slot for inputs to be placed. Useful to differenciate
-     *      inputs placed in the joins and where clauses for SQL engines
+     *      inputs placed in the joins and where clauses for SQL backends
      *      which do not support named parameters.
      *
      * Returns:
@@ -262,6 +272,54 @@ class SqlCompiler {
         }
         return $constraints;
     }
+    
+    /**
+     * input
+     *
+     * Generate a parameterized input for a database query. Input value is
+     * received by reference to avoid copying.
+     *
+     * Parameters:
+     * $what - (mixed) value to be sent to the database. No escaping is
+     *      necessary. Pass a raw value here.
+     * $slot - (int) clause location of the input in compiled SQL statement.
+     *      Currently, SLOT_JOINS and SLOT_WHERE is supported. SLOT_JOINS
+     *      inputs are inserted ahead of the SLOT_WHERE inputs as the joins
+     *      come logically before the where claused in the finalized
+     *      statement.
+     *
+     * Returns:
+     * (string) token to be placed into the compiled SQL statement. For
+     * MySQL, this is always the string '?'. Depends on the actual backend
+     * implementation.
+     */
+    function input($what, $slot=false) {
+        if ($what instanceof QuerySet) {
+            $q = $what->getQuery(array('nosort'=>true));
+            $this->params = array_merge($q->params);
+            return (string)$q;
+        }
+        elseif ($what instanceof SqlFunction) {
+            return $what->toSql($this);
+        }
+        else {
+            $this->addParam($what, $slot);
+        }
+    }
+    
+    /**
+     * Add a parameter to the internal parameters list ($this->params).
+     * This is the part of ::input() that is specific to the database backend
+     * implementation.
+     *
+     * Parameters:
+     * @see ::input() documentation.
+     *
+     * Returns:
+     * (String) string to be embedded in the statement where the parameter
+     * should be used server-side.
+     */
+    abstract function addParam($what, $param=false);
 
     function getParams() {
         return $this->params;
@@ -273,6 +331,13 @@ class SqlCompiler {
             $sql .= $j['sql'];
         return $sql;
     }
+    
+    /**
+     * quote
+     *
+     * Quote a field for usage in a statement.
+     */
+    abstract function quote($what);
 
     function nextAlias() {
         // Use alias A1-A9,B1-B9,...
@@ -280,4 +345,14 @@ class SqlCompiler {
         $this->alias_num++;
         return $alias;
     }
+    
+    // Statement compilations
+    abstract function compileCount(QuerySet $qs);
+    abstract function compileSelect(QuerySet $qs);
+    abstract function compileUpdate(ModelBase $model);
+    abstract function compileInsert(ModelBase $model);
+    abstract function compileDelete(ModelBase $model);
+    abstract function compileBulkDelete(QuerySet $queryset);
+    abstract function compileBulkUpdate(QuerySet $queryset, array $what);
+    abstract function inspectTable($table);
 }

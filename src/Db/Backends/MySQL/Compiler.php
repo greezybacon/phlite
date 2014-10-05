@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Db\Backend\MySQL;
+namespace Phlite\Db\Backends\MySQL;
 
 use Phlite\Db\ModelBase;
 use Phlite\Db\QuerySet;
@@ -9,15 +9,14 @@ use Phlite\Db\Util;
 
 class Compiler extends SqlCompiler {
 
-    // Consts for ::input()
-    const SLOT_JOINS = 1;
-    const SLOT_WHERE = 2;
-
     protected $input_join_count = 0;
+    protected $conn;
 
     static $operators = array(
         'exact' => '%1$s = %2$s',
         'contains' => array('self', '__contains'),
+        'startswith' => array('self', '__startswith'),
+        'endswith' => array('self', '__endswith'),
         'gt' => '%1$s > %2$s',
         'lt' => '%1$s < %2$s',
         'gte' => '%1$s >= %2$s',
@@ -28,10 +27,24 @@ class Compiler extends SqlCompiler {
         'in' => array('self', '__in'),
     );
 
+    // Thanks, http://stackoverflow.com/a/3683868
+    function like_escape($what, $e='\\') {
+        return str_replace(array($e, '%', '_'), array($e.$e, $e.'%', $e.'_'), $what);
+    }
+    
     function __contains($a, $b) {
         # {%a} like %{$b}%
-        # XXX: Escape $b
-        return sprintf('%s LIKE %s', $a, $this->input($b = "%$b%"));
+        # Escape $b
+        $b = $this->like_escape($b);
+        return sprintf('%s LIKE %s', $a, $this->input("%$b%"));
+    }
+    function __startswith($a, $b) {
+        $b = $this->like_escape($b);
+        return sprintf('%s LIKE %s', $a, $this->input("%$b"));
+    }
+    function __endswith($a, $b) {
+        $b = $this->like_escape($b);
+        return sprintf('%s LIKE %s', $a, $this->input("$b%"));
     }
 
     function __in($a, $b) {
@@ -84,47 +97,18 @@ class Compiler extends SqlCompiler {
         return $join.$this->quote($rmodel::$meta['table'])
             .' '.$alias.' ON ('.implode(' AND ', $constraints).')';
     }
-
-    /**
-     * input
-     *
-     * Generate a parameterized input for a database query. Input value is
-     * received by reference to avoid copying.
-     *
-     * Parameters:
-     * $what - (mixed) value to be sent to the database. No escaping is
-     *      necessary. Pass a raw value here.
-     * $slot - (int) clause location of the input in compiled SQL statement.
-     *      Currently, SLOT_JOINS and SLOT_WHERE is supported. SLOT_JOINS
-     *      inputs are inserted ahead of the SLOT_WHERE inputs as the joins
-     *      come logically before the where claused in the finalized
-     *      statement.
-     *
-     * Returns:
-     * (string) token to be placed into the compiled SQL statement. For
-     * MySQL, this is always the string '?'.
-     */
-    function input(&$what, $slot=false) {
-        if ($what instanceof QuerySet) {
-            $q = $what->getQuery(array('nosort'=>true));
-            $this->params = array_merge($q->params);
-            return (string)$q;
+    
+    function addParam($what, $slot=false) {
+        switch ($slot) {
+        case self::SLOT_JOINS:
+            // This should be inserted before the WHERE inputs
+            array_splice($this->params, $this->input_join_count++, 0,
+                array($what));
+            break;
+        default:
+            $this->params[] = $what;
         }
-        elseif ($what instanceof SqlFunction) {
-            return $what->toSql($this);
-        }
-        else {
-            switch ($slot) {
-            case self::SLOT_JOINS:
-                // This should be inserted before the WHERE inputs
-                array_splice($this->params, $this->input_join_count++, 0,
-                    array($what));
-                break;
-            default:
-                $this->params[] = $what;
-            }
-            return '?';
-        }
+        return '?';
     }
 
     function quote($what) {
@@ -292,7 +276,7 @@ class Compiler extends SqlCompiler {
             break;
         }
 
-        return new MysqlExecutor($sql, $this->params, $fieldMap);
+        return new Statement($sql, $this->params, $fieldMap);
     }
 
     function __compileUpdateSet($model, array $pk) {
@@ -318,7 +302,7 @@ class Compiler extends SqlCompiler {
         $sql .= ' WHERE '.$this->compileQ(new Q($criteria), $model);
         $sql .= ' LIMIT 1';
 
-        return new MySqlExecutor($sql, $this->params);
+        return new Statement($sql, $this->params);
     }
 
     function compileInsert(ModelBase $model) {
@@ -326,7 +310,7 @@ class Compiler extends SqlCompiler {
         $sql = 'INSERT INTO '.$this->quote($model::$meta['table']);
         $sql .= $this->__compileUpdateSet($model, $pk);
 
-        return new MySqlExecutor($sql, $this->params);
+        return new Statement($sql, $this->params);
     }
 
     function compileDelete($model) {
@@ -334,7 +318,7 @@ class Compiler extends SqlCompiler {
 
         $where = ' WHERE '.implode(' AND ', $this->compileConstraints($model->pk));
         $sql = 'DELETE FROM '.$this->quote($table).$where.' LIMIT 1';
-        return new MySqlExecutor($sql, $this->params);
+        return new Statement($sql, $this->params);
     }
 
     function compileBulkDelete($queryset) {
@@ -344,7 +328,7 @@ class Compiler extends SqlCompiler {
         $joins = $this->getJoins();
         $sql = 'DELETE '.$this->quote($table).'.* FROM '
             .$this->quote($table).$joins.$where;
-        return new MysqlExecutor($sql, $this->params);
+        return new Statement($sql, $this->params);
     }
 
     function compileBulkUpdate($queryset, array $what) {
@@ -357,7 +341,7 @@ class Compiler extends SqlCompiler {
         list($where, $having) = $this->getWhereHavingClause($queryset);
         $joins = $this->getJoins();
         $sql = 'UPDATE '.$this->quote($table).' SET '.$set.$joins.$where;
-        return new MysqlExecutor($sql, $this->params);
+        return new Statement($sql, $this->params);
     }
 
     // Returns meta data about the table used to build queries

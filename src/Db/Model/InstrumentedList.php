@@ -31,6 +31,7 @@ class InstrumentedList extends ModelInstanceManager {
     }
     function remove($object) {
         $object->delete();
+        // XXX: Delete from local cache
     }
 
     function reset() {

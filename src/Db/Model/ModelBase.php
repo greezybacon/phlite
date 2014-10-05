@@ -167,6 +167,9 @@ class ModelBase {
      * Parameters:
      * $criteria - (mixed) primary key for the sought model either as
      *      arguments or key/value array as the function's first argument
+     *
+     * Returns:
+     * <ModelBase> instance if the lookup succeeded, and NULL otherwise.
      */
     static function lookup($criteria) {
         // Model::lookup(1), where >1< is the pk value
@@ -188,7 +191,7 @@ class ModelBase {
     }
 
     function delete($pk=false) {
-        $ex = DbEngine::delete($this);
+        $ex = Manager::delete($this);
         try {
             $ex->execute();
             if ($ex->affected_rows() != 1)
@@ -209,7 +212,7 @@ class ModelBase {
         elseif ($this->__deleted__)
             throw new OrmException('Trying to update a deleted object');
 
-        $ex = DbEngine::save($this);
+        $ex = Manager::save($this);
         try {
             $ex->execute();
             if ($ex->affected_rows() != 1)
@@ -237,7 +240,7 @@ class ModelBase {
         # XXX: Too much voodoo
         if ($refetch) {
             // Uncache so that the lookup will not be short-cirtuited to
-            // return this object
+            // return this object — i.e. actually fetch from database
             ModelInstanceManager::uncache($this);
             $self = static::lookup($this->get('pk'));
             $this->ht = $self->ht;

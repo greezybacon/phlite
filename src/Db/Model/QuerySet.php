@@ -1,6 +1,8 @@
 <?php
 
-namespace Phlite\Db;
+namespace Phlite\Db\Model;
+
+use Phlite\Db\Util;
 
 class QuerySet implements \IteratorAggregate, \ArrayAccess {
     var $model;
@@ -114,9 +116,12 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
     }
 
     function count() {
-        $class = $this->compiler;
-        $compiler = new $class();
-        return $compiler->compileCount($this);
+        $connection = Manager::getConnection($this->model);
+        $compiler = $this->getCompiler();
+        $stmt = $compiler->compileCount($this);
+        $exec = $connection->execute($stmt);
+        $row = $exec->fetchRow();
+        return $row[0];
     }
 
     function exists($fetch=false) {
@@ -139,22 +144,27 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
         }
         return $this;
     }
+    
+    protected function getCompiler() {
+        $connection = Manager::getConnection($this->model);
+        return $connection->getCompiler();
+    }
 
     function delete() {
-        $class = $this->compiler;
-        $compiler = new $class();
+        $connection = Manager::getConnection($this->model);
+        $compiler = $connection->getCompiler();
         // XXX: Mark all in-memory cached objects as deleted
-        $ex = $compiler->compileBulkDelete($this);
-        $ex->execute();
-        return $ex->affected_rows();
+        $stmt = $compiler->compileBulkDelete($this);
+        $exec = $connection->execute($stmt);
+        return $exec->affected_rows();
     }
 
     function update(array $what) {
-        $class = $this->compiler;
-        $compiler = new $class;
-        $ex = $compiler->compileBulkUpdate($this, $what);
-        $ex->execute();
-        return $ex->affected_rows();
+        $connection = Manager::getConnection($this->model);
+        $compiler = $connection->getCompiler();
+        $stmt = $compiler->compileBulkUpdate($this, $what);
+        $exec = $connection->execute($stmt);
+        return $exec->affected_rows();
     }
 
     function __clone() {
@@ -201,9 +211,7 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
         if (!$this->defer && $model::$meta['defer'])
             $this->defer = $model::$meta['defer'];
 
-        $class = $this->compiler;
-        $compiler = new $class($options);
-        $this->query = $compiler->compileSelect($this);
+        $this->query = $this->getCompiler()->compileSelect($this);
 
         return $this->query;
     }

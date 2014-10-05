@@ -1,6 +1,8 @@
 <?php
 
-namespace Phlite\Db;
+namespace Phlite\Db\Model;
+
+use Phlite\Db\Manager;
 
 abstract class ResultSet implements \Iterator, \ArrayAccess {
     var $resource;
@@ -12,7 +14,9 @@ abstract class ResultSet implements \Iterator, \ArrayAccess {
         $this->queryset = $queryset;
         if ($queryset) {
             $this->model = $queryset->model;
-            $this->resource = $queryset->getQuery();
+            $stmt = $queryset->getQuery();
+            $connection = Manager::getConnection($this->model);
+            $this->resource = $connection->getExecutor($stmt);
         }
     }
 
