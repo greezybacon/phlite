@@ -7,7 +7,7 @@ class Manager {
     protected $routers = array();
     protected $connections = array();
     
-    static getManager() {
+    static function getManager() {
         static $manager;
         
         if (!isset($manager)) {
@@ -20,11 +20,25 @@ class Manager {
         if (!isset($info['BACKEND']))
             throw new \Exception("'BACKEND' must be set in the database options.");
         $backendClass = $info['BACKEND'] . '\Backend';
-        $backend = new $backendClass();
-        $connections[$key] = $backend;
+        if (!class_exists($backendClass))
+            throw new \Exception($backendClass
+                . ': Specified database backend does not exist');
+        $connections[$key] = new $backendClass();
     }
     
-    function getConnection(Model\ModelBase $model) {
+    /**
+     * getConnection
+     *
+     * Fetch a connection object for a particular model.
+     *
+     * Returns:
+     * (Connection) object which can handle queries for this model. 
+     * Optionally, the $key passed to ::addConnection() can be returned and
+     * this Manager will lookup the Connection automatically.
+     */
+    function getConnection($model) {
+        if ($model instanceof Model\ModelBase)
+            $model = get_class($model);
         foreach ($this->routers as $R) {
             if ($C = $R->getConnectionForModel($model)) {
                 if (is_string($C)) {
@@ -46,8 +60,7 @@ class Manager {
     }
     
     function getCompiler(Model\ModelBase $model) {
-        $backend = static::getManager()->getConnection($model);
-        return $backend->getCompiler();
+        return $this->getConnection($model)->getCompiler();
     }
     
     /**
@@ -89,5 +102,11 @@ class Manager {
             $stmt = $compiler->compileUpdate($model);
         
         return $connection->getExecutor($stmt);
-    }   
+    }
+    
+    // Allow "static" access to instance methods of the Manager singleton
+    static function __callStatic($name, $args) {
+        $manager = static::getManager();
+        return call_user_func_array(array($manager, $name), $args);
+    }
 }

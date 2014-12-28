@@ -36,10 +36,11 @@ class HttpResponse extends BaseResponse {
         $length = ($this->body instanceof BaseString)
             ? $this->body->getLength() : strlen($this->body);
 
+        // XXX: This breaks the CGI interface rules
         header('HTTP/1.1 '.self::header_code_verbose($this->status));
 		header('Status: '.self::header_code_verbose($this->type)."\r\n");
-		header("Content-Type: $this->type; charset=$charset\r\n");
-        //header('Content-Length: '.$length."\r\n\r\n
+		header("Content-Type: {$this->type}; charset=$charset\r\n");
+        # header('Content-Length: '.$length."\r\n\r\n");
 		foreach ($this->headers as $name=>$content)
 			header("$name: $content\r\n");
        	echo (string) $this->body;

@@ -13,8 +13,11 @@ class Settings extends Dict {
     }
 
     function loadFile($filename) {
-        $returned = (include $filename);
-        if (is_array($returned)) {
+        // Load current settings into scope
+        extract($this->asArray());
+        
+        $scope = (include $filename);
+        if (is_array($scope)) {
             return $this->update($returned);
         }
 

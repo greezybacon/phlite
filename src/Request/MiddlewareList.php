@@ -3,14 +3,14 @@
 namespace Phlite\Request;
 
 use Phlite\Request\HttpResponse;
-use Phlite\Util\Queue;
+use Phlite\Util\ListObject;
 
-class MiddlewareList extends Queue {
+class MiddlewareList extends ListObject {
 
     function processRequest($request) {
         foreach ($this as $mw) {
             $resp = $mw->processRequest($request);
-            if ($resp && $resp instanceof HttpResponse)
+            if ($resp && $resp instanceof Response)
                 return $resp;
         }
     }

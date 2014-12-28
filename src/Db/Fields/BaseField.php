@@ -4,8 +4,14 @@ namespace Phlite\Db\Fields;
 
 abstract class BaseField {
     
+    var $name;
+    
+    var $nullable = true;
+    var $default = null;
+    var $check = null;
+    
     function __construct($options, $name) {
-        
+        $this->name = $name;
     }
     
     /**
@@ -25,7 +31,5 @@ abstract class BaseField {
     /**
      * Cooperate in a CREATE TABLE statement for SqlCompilers
      */
-    function create($compiler) {
-        
-    }
+    abstract function getCreateSql($compiler);
 }

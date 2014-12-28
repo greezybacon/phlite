@@ -2,8 +2,6 @@
 
 namespace Phlite\Text;
 
-use Phlite\Text\BaseString;
-
 class Bytes extends BaseString {
 
     protected $string;
@@ -18,6 +16,16 @@ class Bytes extends BaseString {
 
     function unpack($format) {
         return unpack($this->string, $format);
+    }
+    
+    /**
+     * Function: decode
+     *
+     * Convert from the declared encoding to the internal encoding
+     */
+    function decode($encoding, $errors=false) {
+        return new Unicode(
+            Codec::decode($this, $encoding, $errors));
     }
 
 }

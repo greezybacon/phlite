@@ -17,6 +17,7 @@ class ModelMeta implements \ArrayAccess {
     static $base = array(
         'pk' => false,
         'table' => false,
+        'form' => false,
         'defer' => array(),
         'select_related' => array(),
     );

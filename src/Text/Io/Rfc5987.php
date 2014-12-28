@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Text\Parse;
+namespace Phlite\Text\Io;
 
 class Rfc2397 {
     /**

@@ -2,7 +2,8 @@
 
 namespace Phlite\Request;
 
-abstract class BaseResponse {
+abstract class BaseResponse
+implements Response {
 
     var $handler;
     var $headers = array();
@@ -21,4 +22,14 @@ abstract class BaseResponse {
     }
     
     abstract function output();
+    
+    function deleteCookie($name) {
+        // Thanks, http://stackoverflow.com/a/5285982
+        setcookie($name, 'deleted', 0, ROOT_PATH);
+    }
+    function setCookie($name, $value, $expires=null, $domain=null,
+        $secure=false, $httponly=false
+    ) {
+        setcookie($name, $value)
+    }
 }

@@ -2,4 +2,4 @@
 
 namespace Phlite\Auth;
 
-class UnauthorizedException extends Exception {}
+class Unauthorized extends Exception {}

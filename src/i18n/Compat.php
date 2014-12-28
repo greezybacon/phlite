@@ -4,8 +4,8 @@ namespace Phlite\I18n;
 
 class Compat {
 
-    static function register() {
-        // MPDF requires mbstring functions
+    static function shim() {
+        // Load shims for mb_* functions
         if (!extension_loaded('mbstring')) {
             if (function_exists('iconv')) {
                 function mb_strpos($a, $b) { return iconv_strpos($a, $b); }

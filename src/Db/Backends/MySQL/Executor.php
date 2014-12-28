@@ -25,74 +25,6 @@ class MysqlExecutor implements SqlExecutor {
         $this->backend = $conn;
     }
     
-    function connect() {
-        if ($this->conn)
-            // No auto reconnect, use ::disconnect() first
-            return;
-        
-        $user = $this->conn_info['USER'];
-        $passwd = $this->conn_info['PASSWORD'];
-        $host = $this->conn_info['HOST'];
-        $options = $this->conn_info['OPTIONS'];
-        
-        //Assert
-        if(!strlen($user) || !strlen($host))
-            return NULL;
-
-        if (!($this->conn = mysqli_init()))
-            return NULL;
-
-        // Setup SSL if enabled
-        if (isset($options['ssl']))
-            $this->conn->ssl_set(
-                    $options['ssl']['key'],
-                    $options['ssl']['cert'],
-                    $options['ssl']['ca'],
-                    null, null);
-        elseif(!$passwd)
-            return NULL;
-
-        $port = ini_get("mysqli.default_port");
-        $socket = ini_get("mysqli.default_socket");
-        $persistent = stripos($host, 'p:') === 0;
-        if ($persistent)
-            $host = substr($host, 2);
-        if (strpos($host, ':') !== false) {
-            list($host, $portspec) = explode(':', $host);
-            // PHP may not honor the port number if connecting to 'localhost'
-            if ($portspec && is_numeric($portspec)) {
-                if (!strcasecmp($host, 'localhost'))
-                    // XXX: Looks like PHP gethostbyname() is IPv4 only
-                    $host = gethostbyname($host);
-                $port = (int) $portspec;
-            }
-            elseif ($portspec) {
-                $socket = $portspec;
-            }
-        }
-
-        if ($persistent)
-            $host = 'p:' . $host;
-
-        // Connect
-        if (!@$this->conn->real_connect($host, $user, $passwd, null, $port, $socket))
-            return NULL;
-
-        //Select the database, if any.
-        if(isset($options['DATABASE'])) $this->conn->select_db($options['DATABASE']);
-
-        //set desired encoding just in case mysql charset is not UTF-8 - Thanks to FreshMedia
-        @$this->conn->query('SET NAMES "utf8"');
-        @$this->conn->query('SET CHARACTER SET "utf8"');
-        @$this->conn->query('SET COLLATION_CONNECTION=utf8_general_ci');
-        $this->conn->set_charset('utf8');
-
-        @db_set_variable('sql_mode', '');
-
-        // Start a new transaction -- disable autocommit
-        $this->conn->autocommit(false);
-    }
-
     function getMap() {
         return $this->map;
     }
@@ -103,9 +35,14 @@ class MysqlExecutor implements SqlExecutor {
     }
 
     function execute() {
+        if (!$this->conn)
+            $this->conn = $this->backend->getConnection();
+        
+        // TODO: Detect server/client abort, pause and attempt reconnection
+        
         if (!($this->stmt = $this->conn->prepare($this->sql)))
-            throw new Exception\DbError('Unable to prepare query: '.db_error()
-                .' '.$this->sql);
+            throw new Exception\DbError('Unable to prepare query: '.$this->conn->error
+                .': '.$this->sql);
         if (count($this->params))
             $this->_bind($this->params);
         if (!$this->stmt->execute() || !$this->stmt->store_result()) {

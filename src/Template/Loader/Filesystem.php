@@ -2,12 +2,15 @@
 
 namespace Phlite\Template\Loader;
 
+use Phlite\Project;
+
 class Filesystem extends BaseLoader {
     
     static function getLoader($request) {
         $loader = new \Twig_Loader_Filesystem();
         foreach ($request->getSettings()->get('TEMPLATE_DIRS', []) as $dir) {
-            $dir = realpath($dir);
+            $base = Project::getCurrent()->getCurrentApp()->getFilesystemRoot();
+            $dir = realpath($base . '/' . $dir);
             if (file_exists($dir))
                 $loader->addPath($dir);
         }

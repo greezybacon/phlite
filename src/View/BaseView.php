@@ -2,10 +2,34 @@
 
 namespace Phlite\View;
 
+use Phlite\Exception\ProgrammingError;
 use Phlite\Http\Exception\MethodNotAllowed;
+use Phlite\Security\Policy;
 
 abstract class BaseView {
-    function __invoke() {
+    
+    /**
+     * $policy
+     *
+     * Governing policy of this view. In order for the view to
+     * be accessible, this Policy will be consulted via the ::checkUserAccess
+     * method. This operation will be passed as the second argument. If
+     * varying policies are required for different methods of the same view,
+     * the view should be split so that each view and set of methods has
+     * only one governing policy.
+     */
+    static $policy = false;
+    
+    function __invoke($request) {
+        
+        // Check associated policy, if any
+        if (static::$policy) {
+            $P = new static::$policy();
+            if (!$P instanceof Policy)
+                throw new ProgrammingError("Operation policies must implement Policy");
+            $P->checkUserAccess($request, $this);
+        }
+        
         $method = strtolower($_SERVER['REQUEST_METHOD']);
 
         switch ($method) {
@@ -22,6 +46,12 @@ abstract class BaseView {
     }
 
     private function _sendAllowedMethods($request) {
+        // Send HTTP/405 — Method Not Allowed, which requires a list of
+        // allowed methods. Assume all overridden view methods are allowed.
+        throw new MethodNotAllowed(static::getAllowedMethods());
+    }
+    
+    static function getAllowedMethods() {
         $methods = array();
         $class = new \ReflectionClass($this);
         foreach (array('get', 'post', 'delete', 'put', 'head') as $m) {
@@ -31,9 +61,7 @@ abstract class BaseView {
                 $methods[] = $m;
             }
         }
-        // Send HTTP/405 — Method Not Allowed, which requires a list of
-        // allowed methods. Assume all overridden view methods are allowed.
-        throw new MethodNotAllowed($methods, 'Method not implemented');
+        return $methods;
     }
 
     function get($request) {

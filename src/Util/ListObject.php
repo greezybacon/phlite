@@ -11,12 +11,12 @@ namespace Phlite\Util;
  * Negative indexes are supported which reference from the end of the list.
  * Therefore $queue[-1] will refer to the last item in the list.
  */
-class Queue
+class ListObject
 implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
 
     protected $storage = array();
     
-    function __construct(array $array=array()) {
+    function __construct(/* Iterable */ $array=array()) {
         foreach ($array as $v)
             $this->storage[] = $v;
     }
@@ -26,8 +26,13 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
     }
     
     function extend($iterable) {
-        foreach ($iterable as $v)
-            $this->storage[] = $v;
+        if (is_array($iterable)) {
+            $this->storage = array_merge($this->storage, $iterable);
+        }
+        else {
+            foreach ($iterable as $v)
+                $this->storage[] = $v;
+        }
     }
     
     function insert($i, $value) {
@@ -100,6 +105,10 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
                 $new[] = $v;
         return $new;
     }
+    
+    function join($glue) {
+        return implode($glue, $this->storage);
+    }
 
     // IteratorAggregate
     function getIterator() {
@@ -144,7 +153,7 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
             throw new \InvalidArgumentException('List indices should be integers');
         elseif ($offset < 0)
             $offset += count($this->storage);
-        unset($this->storage[$offset]);
+        return $this->pop($offset);
     }
     
     // Serializable

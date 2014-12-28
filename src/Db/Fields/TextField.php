@@ -12,10 +12,19 @@ class TextField extends BaseField {
     
     function to_php($value, Connection $connection) {
         if ($this->charset && $this->charset != $connection->charset) {
-            $u = new Unicode($value, $connection->charset);
-            $u->decode($this->charset);
-            return $u;
+            return new Unicode($value, $this->charset);
         }
         return $value;
+    }
+    
+    function getCreateSql($compiler) {
+        return sprintf('%s VARCHAR(%s) %s%s%s%s',
+            $compiler->quote($this->name),
+            $this->max_length,
+            ($this->charset) ? ' CHARSET ' . $this->charset : '',
+            ($this->collation) ? ' COLLATION ' . $this->collation : '',
+            ($this->nullable ? 'NOT ' : '') . 'NULL',
+            ($this->default) ? ' DEFAULT ' . $compiler->escape($this->default) : ''
+        );
     }
 }

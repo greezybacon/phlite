@@ -2,7 +2,8 @@
 
 namespace Phlite\Cli;
 
-  require_once 'Cmd.php';
+require_once 'Cmd.php';
+
 class Interact extends Cmd {
 
     var $prompt = ">>> ";
@@ -22,30 +23,42 @@ EOT
 
     function unknown($___line) {
         // Refresh previous scope
-        foreach ($this->scope as $___k => &$___v)
-            $$___k = & $___v;
-        unset($___k);
-        unset($___v);
+        extract($this->scode, EXTR_OVERWRITE);
+
         // If the line is an expression, capture the result
         if ($this->isExpr)
             $___line = 'return ' . $___line;
+        $___line = "try{{$___line}}catch(Exception \$___e){}";
         // Eval the current line
         try {
             $___result = eval($___line);
         } 
-        catch (Exception $e) {
-            fwrite(STDERR, $e->getTraceAsString());
+        catch (Exception $___e) {
+        }
+        if (isset($___e)) {
+            fwrite(STDERR, sprintf(
+                "Backtrace (most recent call first):\n%s\n%s: %s\n",
+                $___e->getTraceAsString(),
+                get_class($___e),
+                $___e->getMessage()
+            ));
         }
         // Capture new scope after evaluation
         $this->scope = get_defined_vars();
         // Output expression result
         if ($___result !== null) {
-            fwrite($this->stdout, var_export($___result, true) . "\n");
-            $this->scope['_'] = $___result;
+            if (is_object($___result)
+                    && method_exists($___result, '__toString'))
+                $repr = $___result->__toString();
+            else
+                $repr = var_export($___result, true);
+            fwrite($this->stdout, $repr . "\n");
+            $this->scope['_'] = & $___result;
         }
         unset($this->scope['___line']);
         unset($this->scope['___result']);
         unset($this->scope['this']);
+        unset($this->scope['___e']);
     }
 
     function do_EOF($arg) {
@@ -67,6 +80,10 @@ EOT
     }
 
     function emptyline() {
+    }
+    
+    function resetContext() {
+        $this->scope = array();
     }
 
     function isComplete($line, &$expression) {
@@ -107,6 +124,7 @@ EOT
                 case T_GLOBAL:
                 case T_PRINT:
                 case T_RETURN:
+                case T_THROW:
                 case '=':
                     $expression = false;
             }
@@ -167,6 +185,11 @@ EOT
         foreach (get_declared_classes() as $class) {
             if (!$text || stripos($class, $text) === 0)
                 $matches[] = $class;
+        }
+        foreach (get_defined_constants() as $name=>$value) {
+            if (!$text || stripos($name, $text) === 0) {
+                $matches[] = $name;
+            }
         }
         return $matches;
     }

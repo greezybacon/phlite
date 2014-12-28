@@ -3,6 +3,11 @@
 namespace Phlite\Cli;
 
 use Phlite\Cli\KeyboardInterrupt;
+use Phlite\Io\BufferedInputStream;
+
+// TODO: Use an app to start the autoloader
+require_once dirname(dirname(__file__)) . '/Io/InputStream.php';
+require_once dirname(dirname(__file__)) . '/Io/BufferedInputStream.php';
 
 class Cmd {
 
@@ -20,8 +25,8 @@ class Cmd {
     var $completekey = false;
 
     function __construct($completekey='tab' ,$stdin=false, $stdout=false) {
-        $this->stdin = $stdin ?: fopen('php://stdin', 'r');
-        $this->stdout = $stdout ?: fopen('php://output', 'w');
+        $this->stdin = $stdin !== false ? $stdin : new BufferedInputStream('php://stdin');
+        $this->stdout = $stdout !== false ? $stdout : fopen('php://output', 'w');
         $this->cmdqueue = array();
         if (function_exists('readline'))
             $this->completekey = $completekey;
@@ -40,7 +45,7 @@ class Cmd {
 
         if (function_exists('pcntl_signal')) {
             pcntl_signal(SIGINT, function() {
-                throw new KeyboardInterrupt();
+                throw new Exception\KeyboardInterrupt();
             });
         }
 
@@ -59,7 +64,7 @@ class Cmd {
             else {
                 fwrite($this->stdout, $this->prompt);
                 fflush($this->stdout);
-                $line = fgets($this->stdin);
+                $line = $this->stdin->readline();
                 if (!$line)
                     $line = 'EOF';
                 else

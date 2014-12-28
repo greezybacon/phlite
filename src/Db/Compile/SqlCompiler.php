@@ -2,6 +2,10 @@
 
 namespace Phlite\Db;
 
+use Phlite\Db\Backend;
+use Phlite\Db\Exception;
+use Phlite\Db\Model;
+
 abstract class SqlCompiler {
 
     // Consts for ::input()
@@ -20,7 +24,7 @@ abstract class SqlCompiler {
         'exact' => '%$1s = %$2s'
     );
 
-    function __construct(Connection $conn, $options=false) {
+    function __construct(Backend $conn, $options=false) {
         if ($options)
             $this->options = array_merge($this->options, $options);
         $this->conn = $conn;
@@ -188,6 +192,9 @@ abstract class SqlCompiler {
         // TODO: Always use a table alias. This will further help with
         // coordination between the data returned from the database (where
         // table alias is available) and the corresponding data.
+        
+        // Correlate path and alias immediately so that they could be
+        // referenced in the ::compileJoin method if necessary.
         $T = array('alias' => $alias);
         $this->joins[$path] = &$T;
         $T['sql'] = $this->compileJoin($tip, $model, $alias, $info, $constraint);
@@ -204,9 +211,9 @@ abstract class SqlCompiler {
      * represented in the resulting CompiledExpression instance.
      *
      * Parameters:
-     * $Q - (Q) constraint represented in a Q instance
-     * $model - (VerySimpleModel) root model for all the field references in
-     *      the Q instance
+     * $Q - (Util\Q) constraint represented in a Q instance
+     * $model - (ModelBase) root model for all the field references in
+     *      the Util\Q instance
      * $slot - (int) slot for inputs to be placed. Useful to differenciate
      *      inputs placed in the joins and where clauses for SQL backends
      *      which do not support named parameters.
@@ -217,7 +224,7 @@ abstract class SqlCompiler {
      * of the CompiledExpression will allow the compiler to place the
      * constraint properly in the WHERE or HAVING clause appropriately.
      */
-    function compileQ(Util\Q $Q, $model, $slot=false) {
+    function compileQ(Util\Q $Q, ModelBase $model, $slot=false) {
         $filter = array();
         $type = CompiledExpression::TYPE_WHERE;
         foreach ($Q->constraints as $field=>$value) {
@@ -230,7 +237,7 @@ abstract class SqlCompiler {
                     $type = $T->type;
             }
             // Handle relationship comparisons with model objects
-            elseif ($value instanceof ModelBase) {
+            elseif ($value instanceof Model\ModelBase) {
                 $criteria = array();
                 foreach ($value->pk as $f=>$v) {
                     $f = $field . '__' . $f;
@@ -294,12 +301,12 @@ abstract class SqlCompiler {
      * implementation.
      */
     function input($what, $slot=false) {
-        if ($what instanceof QuerySet) {
+        if ($what instanceof Model\QuerySet) {
             $q = $what->getQuery(array('nosort'=>true));
             $this->params = array_merge($q->params);
             return (string)$q;
         }
-        elseif ($what instanceof SqlFunction) {
+        elseif ($what instanceof Util\SqlFunction) {
             return $what->toSql($this);
         }
         else {
@@ -335,9 +342,17 @@ abstract class SqlCompiler {
     /**
      * quote
      *
-     * Quote a field for usage in a statement.
+     * Quote a field or table for usage in a statement.
      */
     abstract function quote($what);
+    
+    /**
+     * escape
+     *
+     * Properly escape a value for use in a query, optionally wrapping in
+     * quotes
+     */
+    abstract function escape($what, $quote=true);
 
     function nextAlias() {
         // Use alias A1-A9,B1-B9,...
@@ -347,12 +362,13 @@ abstract class SqlCompiler {
     }
     
     // Statement compilations
-    abstract function compileCount(QuerySet $qs);
-    abstract function compileSelect(QuerySet $qs);
-    abstract function compileUpdate(ModelBase $model);
-    abstract function compileInsert(ModelBase $model);
-    abstract function compileDelete(ModelBase $model);
-    abstract function compileBulkDelete(QuerySet $queryset);
-    abstract function compileBulkUpdate(QuerySet $queryset, array $what);
+    abstract function compileCount(Model\QuerySet $qs);
+    abstract function compileSelect(Model\QuerySet $qs);
+    abstract function compileUpdate(Model\ModelBase $model);
+    abstract function compileInsert(Model\ModelBase $model);
+    abstract function compileDelete(Model\ModelBase $model);
+    abstract function compileBulkDelete(Model\QuerySet $queryset);
+    abstract function compileBulkUpdate(Model\QuerySet $queryset, array $what);
     abstract function inspectTable($table);
+    abstract function compileCreate($modelClass);
 }

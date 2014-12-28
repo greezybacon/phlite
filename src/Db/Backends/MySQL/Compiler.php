@@ -2,9 +2,11 @@
 
 namespace Phlite\Db\Backends\MySQL;
 
-use Phlite\Db\ModelBase;
-use Phlite\Db\QuerySet;
-use Phlite\Db\SqlCompiler;
+use Phlite\Db\Compile\Statement;
+use Phlite\Db\Compile\SqlCompiler;
+use Phlite\Db\Manager;
+use Phlite\Db\Model\ModelBase;
+use Phlite\Db\Model\QuerySet;
 use Phlite\Db\Util;
 
 class Compiler extends SqlCompiler {
@@ -91,7 +93,7 @@ class Compiler extends SqlCompiler {
             }
         }
         // Support extra join constraints
-        if ($extra instanceof Q) {
+        if ($extra instanceof Util\Q) {
             $constraints[] = $this->compileQ($extra, $model, self::SLOT_JOINS);
         }
         return $join.$this->quote($rmodel::$meta['table'])
@@ -145,13 +147,15 @@ class Compiler extends SqlCompiler {
         list($where, $having) = $this->getWhereHavingClause($queryset);
         $joins = $this->getJoins();
         $sql = 'SELECT COUNT(*) AS count FROM '.$this->quote($table).$joins.$where;
-        $exec = new MysqlExecutor($sql, $this->params);
+        $exec = Manager::getConnection($model)->getExecutor(
+            new Statement($sql, $this->params));
         $row = $exec->getArray();
         return $row['count'];
     }
 
     function compileSelect($queryset) {
         $model = $queryset->model;
+        
         // Use an alias for the root model table
         $table = $model::$meta['table'];
         $this->joins[''] = array('alias' => ($rootAlias = $this->nextAlias()));
@@ -356,7 +360,7 @@ class Compiler extends SqlCompiler {
         $sql = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS '
             .'WHERE TABLE_NAME = '.db_input($table).' AND TABLE_SCHEMA = DATABASE() '
             .'ORDER BY ORDINAL_POSITION';
-        $ex = new MysqlExecutor($sql, array());
+        $ex = new MysqlExecutor(new Statement($sql, array()));
         $columns = array();
         while (list($column) = $ex->getRow()) {
             $columns[] = $column;

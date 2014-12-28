@@ -13,6 +13,9 @@ class AuthMiddleware {
     }
 
     function processView($request, $view) {
+        if ($view instanceof AuthenticationRequired) {
+            $view->processPolicy($request);
+        }
         $handler = $view->getHandler();
         if ($handler instanceof AuthenticationRequired) {
             if (!($user = $request->user)) {

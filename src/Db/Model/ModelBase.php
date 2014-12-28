@@ -2,6 +2,9 @@
 
 namespace Phlite\Db\Model;
 
+use Phlite\Db\Exception;
+use Phlite\Db\Manager;
+
 class ModelBase {
     static $meta = array(
         'table' => false,
@@ -162,7 +165,9 @@ class ModelBase {
      *
      * For composite primary keys and the first usage, pass the values in
      * the order they are given in the Model's 'pk' declaration in its meta
-     * data.
+     * data. For example:
+     *
+     * >>> UserPrivilege::lookup(1, 2)
      *
      * Parameters:
      * $criteria - (mixed) primary key for the sought model either as
@@ -186,7 +191,7 @@ class ModelBase {
             return static::objects()->filter($criteria)->one();
         }
         catch (Exception\DoesNotExist $e) {
-            return $null;
+            return null;
         }
     }
 
@@ -200,7 +205,7 @@ class ModelBase {
             $this->__deleted__ = true;
             Signal::send('model.deleted', $this);
         }
-        catch (OrmException $e) {
+        catch (DbError $e) {
             return false;
         }
         return true;
@@ -210,7 +215,7 @@ class ModelBase {
         if (count($this->dirty) === 0)
             return true;
         elseif ($this->__deleted__)
-            throw new OrmException('Trying to update a deleted object');
+            throw new DbError('Trying to update a deleted object');
 
         $ex = Manager::save($this);
         try {
@@ -218,7 +223,7 @@ class ModelBase {
             if ($ex->affected_rows() != 1)
                 return false;
         }
-        catch (OrmException $e) {
+        catch (DbError $e) {
             return false;
         }
 

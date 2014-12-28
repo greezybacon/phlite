@@ -3,6 +3,7 @@
 namespace Phlite\Db;
 
 class ModelInstanceManager extends ResultSet {
+
     var $model;
     var $map;
 
@@ -11,7 +12,7 @@ class ModelInstanceManager extends ResultSet {
     function __construct($queryset=false) {
         parent::__construct($queryset);
         if ($queryset) {
-            $this->map = $this->resource->getMap();
+            $this->map = $this->stmt->getMap();
         }
     }
 

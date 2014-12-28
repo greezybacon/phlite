@@ -24,8 +24,7 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
     protected $storage = array();
     
     function __construct(array $array=array()) {
-        foreach ($array as $k=>$v)
-            $this[$k] = $v;
+        $this->update($array);
     }
     
     function clear() {
@@ -64,7 +63,7 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
             return $default;
     }
     
-    function update(array $other) {
+    function update(/* Iterable */ $other) {
         foreach ($other as $k=>$v)
             $this[$k] = $v;
     }
@@ -130,6 +129,7 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
             list($k, $v) = $i;
             $this[$k] = $v;
         }
+        $this->__wakeup();
     }
     
     function __toString() {
@@ -138,5 +138,13 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
             $items[] = (string) $key . '=> ' . (string) $value;
         }
         return '{'.implode(', ', $items).'}';
+    }
+    
+    function asArray() {
+        $array = array();
+        foreach ($this->storage as $v) {
+            $array[$v[0]] = $v[1];
+        }
+        return $array;
     }
 }

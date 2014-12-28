@@ -6,6 +6,7 @@ use Phlite\Db\Manager;
 
 abstract class ResultSet implements \Iterator, \ArrayAccess {
     var $resource;
+    var $stmt;
     var $position = 0;
     var $queryset;
     var $cache = array();
@@ -14,9 +15,9 @@ abstract class ResultSet implements \Iterator, \ArrayAccess {
         $this->queryset = $queryset;
         if ($queryset) {
             $this->model = $queryset->model;
-            $stmt = $queryset->getQuery();
+            $thi->stmt = $queryset->getQuery();
             $connection = Manager::getConnection($this->model);
-            $this->resource = $connection->getExecutor($stmt);
+            $this->resource = $connection->getExecutor($this->stmt);
         }
     }
 

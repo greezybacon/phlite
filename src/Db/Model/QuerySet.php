@@ -20,7 +20,6 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
     const LOCK_EXCLUSIVE = 1;
     const LOCK_SHARED = 2;
 
-    var $compiler = 'Phlite\Db\Backends\MySql\Compiler';
     var $iterator = 'ModelInstanceManager';
 
     var $params;
@@ -31,7 +30,6 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
     }
 
     function filter() {
-        // Multiple arrays passes means OR
         foreach (func_get_args() as $Q) {
             $this->constraints[] = $Q instanceof Util\Q ? $Q : new Util\Q($Q);
         }
@@ -97,21 +95,20 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
     }
 
     function first() {
-        $list = $this->limit(1)->all();
-        return $list[0];
+        $this->limit(1);
+        return $this[0];
     }
 
     function one() {
         $list = $this->all();
-        return $list[0];
         if (count($list) == 0)
             throw new Exception\DoesNotExist();
         elseif (count($list) > 1)
-            throw new Exception\ObjectNotUnique('One object was expected; however '
+            // TODO: Throw error if more than one result from database
+            throw new Exception\NotUnique('One object was expected; however '
                 .'multiple objects in the database matched the query. '
                 .sprintf('In fact, there are %d matching objects.', count($list))
             );
-        // TODO: Throw error if more than one result from database
         return $list[0];
     }
 

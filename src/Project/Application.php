@@ -3,6 +3,10 @@
 namespace Phlite\Project;
 
 use Phlite\Dispatch\Dispatcher;
+use Phlite\Dispatch\Route;
+use Phlite\Project;
+
+
 
 /**
  * Class: Application
@@ -25,9 +29,10 @@ abstract class Application {
     var $label;
     
     var $namespace;
-    
+    var $urls_path = 'urls.inc';
+
     function __construct($root=false) {
-        $root = $root ?: dirname(__file__);
+        $this->root = $root ?: dirname(__file__);
     }
 
     /**
@@ -40,7 +45,7 @@ abstract class Application {
      * Returns:
      * (array<Phlite\Dispatcher\Route>) a list of objects used by the
      * dispatcher to connect the Http request with a view inside this
-     * applicatoin.
+     * application.
      *
      * Example:
      * return array(
@@ -48,13 +53,23 @@ abstract class Application {
      * );
      */
     function getUrls() {
-        if ($this->root . '/urls.inc')
-            return (include $this->root . '/urls.inc');
+        if ($this->root . '/' . $this->urls_path)
+            return (include $this->root . '/' . $this->urls_path);
     }
     
-    function resolve($url, $args=null) {
+    function resolve($url, $args=null, $setCurrentProject=true) {
         $disp = new Dispatcher($this->getUrls());
+        if ($setCurrentProject) {
+            Project::getCurrent()->setCurrentApp($this);
+        }
         return $disp->resolve($url, $args);
+    }
+
+    function getNamespace() {
+        $class = get_class($this);
+        $namespace = explode('\\', $class);
+        array_pop($namespace);
+        return implode('\\', $namespace);
     }
     
     /**
@@ -95,6 +110,7 @@ abstract class Application {
      * this application.
      */
     function getTemplateFolder() {
+        // XXX: fallback to project settings TEMPLATE_DIRS
         return 'Templates';
     }
     
@@ -125,5 +141,20 @@ abstract class Application {
 
     function getI18nFolder() {
         return $this->root . 'I18n';
+    }
+    
+    static function asRoute($url) {
+        return new Route($url, get_called_class(), null, Route::APPLICATION);
+    }
+    
+    /**
+     * getTemplateContexts
+     *
+     * Simple interface for applications to specify their own template
+     * contexts, which is mostly useful for internal applications to specify
+     * contests without the need to modify the project settings.
+     */
+    function getTemplateContexts() {
+        return false;
     }
 }

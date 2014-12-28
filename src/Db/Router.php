@@ -18,4 +18,6 @@ abstract class Router {
      * the project settings file.
      */
     abstract function getConnectionForModel(ModelBase $model);
+    
+    // TODO: Consider allows switch of server connection for updates.
 }

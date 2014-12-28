@@ -6,10 +6,6 @@ class Option {
 
     var $default = false;
 
-    function Option() {
-        call_user_func_array(array($this, "__construct"), func_get_args());
-    }
-
     function __construct($options=false) {
         list($this->short, $this->long) = array_slice($options, 0, 2);
         $this->help = (isset($options['help'])) ? $options['help'] : "";

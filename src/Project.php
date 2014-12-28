@@ -3,6 +3,7 @@
 namespace Phlite;
 
 use Phlite\Project\Settings;
+use Phlite\Util;
 
 /**
  * Class: Project
@@ -15,15 +16,21 @@ class Project {
     var $settings_file = '';
     
     static $global_settings = 'Phlite\Project\DefaultSettings';
+    static $current_project = null;
 
     protected $settings;
     protected $applications = array();
+    protected $current_app;
+    
+    protected $_tcps;
 
     function __construct($settings=false) {
         $this->settings = new $this::$global_settings();
         if ($settings)
             $this->loadSettings($settings);
 		spl_autoload_register(array($this, '_autoload'));
+        if (!isset($this::$current_project))
+            self::$current_project = $this;
     }
 
     /**
@@ -43,10 +50,17 @@ class Project {
         return $this->applications;
     }
 
+    function getCurrentApp() {
+        return $this->current_app;
+    }
+    function setCurrentApp(Project\Application $app) {
+        $this->current_app = $app;
+    }
+
 	function _autoload($class) {
 		$path = explode('\\', $class);
 		$path = implode('/', $path) . '.php';
-		return (include $path);
+        return (@include $path);
 	}
 
     // -------- SETTINGS ----------------------------
@@ -55,7 +69,7 @@ class Project {
     }
 
     function loadSettings($filename=false) {
-        $this->settings->loadFile($filename);
+        $this->settings->loadFile($filename, $this);
     }
 
     // -------- DATABASE ----------------------------
@@ -64,6 +78,14 @@ class Project {
 
     // -------- TEMPLATE ----------------------------
     function getTemplateContexts() {
+        if (!isset($this->_tcps)) {
+            $this->_tcps = new Util\ListObject(
+                $this->settings->get('TEMPLATE_CONTEXT_PROCESSORS', []));
+            foreach ($this->getApplications() as $A) {
+                $this->_tcps->extend($A->getTemplateContexts() ?: []);
+            }
+        }
+        return $this->_tcps;
     }
 
     function getTemplateEngine() {
@@ -83,5 +105,13 @@ class Project {
     function getUrls() {
         return $this->getSettings()->get('URLS') ?: (include 'urls.php');
     }
+
+    static function getCurrent() {
+        return self::$current_project;
+    }
     
+    // Allow static calls as singleton calls
+    static function __callStatic($what, $how) {
+        return call_user_func_array(static::getCurrent(), $how);
+    }
 }

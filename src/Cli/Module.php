@@ -2,6 +2,8 @@
 
 namespace Phlite\Cli;
 
+use Phlite\Io\TextStream;
+
 class Module {
     static $registry = array();
 
@@ -19,18 +21,14 @@ class Module {
     var $_options;
     var $_args;
 
-    function Module() {
-        call_user_func_array(array($this, '__construct'), func_get_args());
-    }
-
     function __construct() {
         $this->options['help'] = array("-h","--help",
             'action'=>'store_true',
             'help'=>"Display this help message");
         foreach ($this->options as &$opt)
             $opt = new Option($opt);
-        $this->stdout = new OutputStream('php://output');
-        $this->stderr = new OutputStream('php://stderr');
+        $this->stdout = new TextStream('php://output');
+        $this->stderr = new TextStream('php://stderr');
     }
 
     function showHelp() {
