@@ -2,8 +2,6 @@
 
 namespace Phlite\Mail\Parse\Tnef;
 
-use Phlite\Mail\Parse\AbstractTnefObject;
-
 class TnefMessage extends AbstractTnefObject {
     var $attachments = array();
 

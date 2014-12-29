@@ -88,7 +88,7 @@ class TnefAttribute {
     static function getName($code) {
         static $prop_codes = false;
         if (!$prop_codes) {
-            $R = new ReflectionClass(get_class());
+            $R = new \ReflectionClass(get_class());
             $prop_codes = array_flip($R->getConstants());
         }
         return $prop_codes[$code];

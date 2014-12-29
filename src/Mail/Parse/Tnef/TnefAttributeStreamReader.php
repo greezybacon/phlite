@@ -2,7 +2,7 @@
 
 namespace Phlite\Mail\Parse\Tnef;
 
-use Phlite\Mail\Parse\TnefStreamReader;
+use Phlite\Text;
 
 class TnefAttributeStreamReader extends TnefStreamReader {
     var $count = 0;
@@ -96,7 +96,7 @@ class TnefAttributeStreamReader extends TnefStreamReader {
             /* Read and truncate to length. */
             $text = substr($this->_getx($datalen), 0, $length);
             if ($type == self::TypeUnicode) {
-                $text = Format::encode($text, 'ucs2');
+                $text = Text\Codec::decode($text, 'ucs-2le');
             }
 
             return $text;

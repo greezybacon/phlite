@@ -2,8 +2,6 @@
 
 namespace Phlite\Text;
 
-use Phlite\Text\Bytes;
-
 /**
  * Class: BytesView
  *
@@ -16,7 +14,7 @@ class BytesView extends Bytes {
     private $start;
     private $end;
 
-    function __construct(&$string, $start=0, $end=false) {
+    function __construct($string, $start=0, $end=false) {
         parent::__construct($string);
         $this->start = $start;
         $this->end = $end;
@@ -35,7 +33,7 @@ class BytesView extends Bytes {
 
     function substr($start, $length=false) {
         return new static($this->string, $this->start + $start,
-            $end ? min($this->start + $end, $this->end ?: PHP_INT_MAX) : $this->end);
+            $length ? min($this->start + $start + $length, $this->end ?: PHP_INT_MAX) : $this->end);
     }
 
     function explode($token) {
@@ -63,6 +61,6 @@ class BytesView extends Bytes {
     }   
 
     function unpack($format, $length=false) {
-        return unpack($this, $format);
+        return unpack($format, $this);
     }
 }

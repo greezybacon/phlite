@@ -2,4 +2,4 @@
 
 namespace Phlite\Mail\Parse\Tnef;
 
-class TnefException extends Exception {}
+class TnefException extends \Exception {}

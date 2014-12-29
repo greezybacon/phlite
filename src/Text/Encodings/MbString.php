@@ -2,8 +2,10 @@
 
 namespace Phlite\Text\Encodings;
 
+use Phlite\Text\Bytes;
 use Phlite\Text\Codec;
 use Phlite\Text\CodecInfo;
+use Phlite\Text\Unicode;
 
 class MbString extends CodecInfo {
 
@@ -16,19 +18,17 @@ class MbString extends CodecInfo {
     function encode($what, $errors=false) {
         if ($what instanceof Unicode) {
             return new Unicode(
-                mb_convert_encoding((string) $what, $what->charset, $this->target_charset),
+                mb_convert_encoding((string) $what, $what->target_charset, $this->charset),
                 $this->target_charset
             );
         }
     }
     
     function decode($what, $errors=false) {
-        if ($what instanceof Bytes) {
-            return new Unicode(
-                mb_convert_encoding((string) $what, $this->target_charset),
-                mb_internal_encoding()
-            );
-        }
+        return new Unicode(
+            mb_convert_encoding((string) $what, Unicode::$default_encoding,
+                $this->target_charset)
+        );
     }
 }
 

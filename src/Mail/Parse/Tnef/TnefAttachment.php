@@ -2,8 +2,6 @@
 
 namespace Phlite\Mail\Parse\Tnef;
 
-use Phlite\Mail\Parse\AbstractTnefObject;
-
 class TnefAttachment extends AbstractTnefObject {
     function _setFilename($data) {
         $this->TransportFilename = $data;

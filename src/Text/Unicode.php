@@ -14,16 +14,17 @@ class Unicode implements ArrayAccess, Countable {
     static $default_encoding = 'utf-8';
 
     function __construct($text, $encoding=false) {
+        $this->content = $text;
         if ($encoding && $encoding != self::$default_encoding)
-            $this->content = Codec::decode($text, $encoding);
-        else
-            $this->content = $text;
+            // Shouldn't this be done extremely lazily ?!
+            ; # $this->content = Codec::decode($text, $encoding);
 
-        $this->encoding = self::$default_encoding;
+        $this->encoding = $encoding ?: self::$default_encoding;
     }
 
     function __toString() {
-        return $this->content;
+        // TODO: Lazily decode content
+        return (string) $this->content;
     }
 
     /**

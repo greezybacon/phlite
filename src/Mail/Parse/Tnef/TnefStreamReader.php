@@ -8,7 +8,7 @@ namespace Phlite\Mail\Parse\Tnef;
  * http://msdn.microsoft.com/en-us/library/ee160597(v=exchg.80).aspx
  * http://sourceforge.net/apps/trac/mingw-w64/browser/trunk/mingw-w64-headers/include/tnef.h?rev=3952
  */
-class TnefStreamReader implements Iterator {
+class TnefStreamReader implements \Iterator {
     const SIGNATURE = 0x223e9f78;
 
     var $pos = 0;

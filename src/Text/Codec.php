@@ -35,3 +35,4 @@ class Codec {
 
 // Load standard encodings
 require_once 'Encodings/Base64.php';
+require_once 'Encodings/MbString.php';

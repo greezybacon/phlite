@@ -4,12 +4,6 @@ namespace Phlite\Text;
 
 class Bytes extends BaseString {
 
-    protected $string;
-
-    function __construct(&$string) {
-        $this->string = &$string;
-    }
-
     function substr($offset, $length=false) {
         return substr($this->string, $offset, $length);
     }
