@@ -18,22 +18,26 @@ class BytesView extends Bytes {
         parent::__construct($string);
         $this->start = $start;
         $this->end = $end;
-        $this->length = $end ? $end - $start : strlen($string) - $start;
+        $this->length = $end ? $end - $start : $this->length - $start;
     }   
 
     function __toString() {
-        return $this->end
-            ? substr($this->string, $this->start, $this->end - $this->start)
-            : substr($this->string, $this->start);
+        return substr($this->string, $this->start, $this->length) ?: '';
     }   
 
-    function slice($start, $end) {
-        return new static($this->string, $start, $end);
+    function substr($start, $length=false) {
+        return substr($this->string, $this->start + $start, $length);
     }
 
-    function substr($start, $length=false) {
+    function slice($start, $length=false) {
         return new static($this->string, $this->start + $start,
             $length ? min($this->start + $start + $length, $this->end ?: PHP_INT_MAX) : $this->end);
+    }
+    
+    function truncate($length) {
+        $this->end = $this->start + $length;
+        $this->length = max(0, $this->end - $this->start);
+        return $this;
     }
 
     function explode($token) {
@@ -61,6 +65,6 @@ class BytesView extends Bytes {
     }   
 
     function unpack($format, $length=false) {
-        return unpack($format, $this);
+        return unpack($format, (string) $this);
     }
 }

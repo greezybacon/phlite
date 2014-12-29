@@ -30,7 +30,7 @@ class TnefAttributeStreamReader extends TnefStreamReader {
     const MAPI_MV_FLAG = 0x1000;
 
     function __construct($stream) {
-        $this->push($stream);
+        $this->setStream($stream);
         /* Number of attributes. */
         $this->count = $this->_geti(32);
     }
@@ -60,11 +60,11 @@ class TnefAttributeStreamReader extends TnefStreamReader {
             return (bool) $this->_geti(32);
 
         case self::TypeFlt32:
-            list($f) = unpack('f', $this->_getx(8));
+            list(,$f) = $this->_getp(8, 'f');
             return $f;
 
         case self::TypeFlt64:
-            list($d) = unpack('d', $this->_getx(8));
+            list(,$d) = $this->_getp(8, 'd');
             return $d;
 
         case self::TypeAppTime:
@@ -73,7 +73,7 @@ class TnefAttributeStreamReader extends TnefStreamReader {
             return $this->_getx(8);
 
         case self::TypeSystime:
-            $a = unpack('Vl/Vh', $this->_getx(8));
+            $a = $this->_getp(8, 'Vl/Vh');
             // return FileTimeToU64(f) / 10000000 - 11644473600
             $ft = ($a['l'] / 10000000.0) + ($a['h'] * 429.4967296);
             return $ft - 11644473600;
@@ -94,9 +94,9 @@ class TnefAttributeStreamReader extends TnefStreamReader {
                 $length -= 2;
 
             /* Read and truncate to length. */
-            $text = substr($this->_getx($datalen), 0, $length);
+            $text = $this->_getx($datalen)->truncate($length);
             if ($type == self::TypeUnicode) {
-                $text = Text\Codec::decode($text, 'ucs-2le');
+                $text = $text->decode('ucs-2le');
             }
 
             return $text;
@@ -127,7 +127,7 @@ class TnefAttributeStreamReader extends TnefStreamReader {
         }
 
         if (($attr_name >= 0x8000) && ($attr_name < 0xFFFE)) {
-            $this->_getx(16);
+            $this->_getp(16, 'C*');
             $named_type = $this->_geti(32);
 
             switch ($named_type) {

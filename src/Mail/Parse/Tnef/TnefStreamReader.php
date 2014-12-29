@@ -2,6 +2,8 @@
 
 namespace Phlite\Mail\Parse\Tnef;
 
+use Phlite\Text\BytesView;
+
 /**
  * References:
  * http://download.microsoft.com/download/1/D/0/1D0C13E1-2961-4170-874E-FADD796200D9/%5BMS-OXTNEF%5D.pdf
@@ -13,7 +15,7 @@ class TnefStreamReader implements \Iterator {
 
     var $pos = 0;
     var $length = 0;
-    var $streams = array();
+    var $stream;
     var $current = true;
 
     var $options = array(
@@ -24,8 +26,8 @@ class TnefStreamReader implements \Iterator {
         if (is_array($options))
             $this->options += $options;
 
-        $this->push($stream);
-
+        $this->setStream($stream);
+        
         // Read header
         if (self::SIGNATURE != $this->_geti(32))
             throw new TnefException("Invalid signature");
@@ -34,16 +36,13 @@ class TnefStreamReader implements \Iterator {
 
         $this->next(); // Process first block
     }
-
-    protected function push(&$stream) {
-        $this->streams[] = array($this->stream, $this->pos, $this->length);
-        $this->stream = &$stream;
+    
+    protected function setStream($stream) {
+        if (is_string($stream))
+            $stream = new BytesView($stream);
+        $this->stream = $stream;
         $this->pos = 0;
-        $this->length = strlen($stream);
-    }
-
-    protected function pop() {
-        list($this->stream, $this->pos, $this->length) = array_pop($this->streams);
+        $this->length = $stream->length;
     }
 
     protected function _geti($bits) {
@@ -54,29 +53,35 @@ class TnefStreamReader implements \Iterator {
             $value = ord($this->stream[$this->pos]);
             break;
         case 2:
-            $value = unpack('vval', substr($this->stream, $this->pos, 2));
-            $value = $value['val'];
+            list(,$value) = unpack('v', $this->stream->substr($this->pos, 2));
             break;
         case 4:
-            $value = unpack('Vval', substr($this->stream, $this->pos, 4));
-            $value = $value['val'];
+            list(,$value) = unpack('V', $this->stream->substr($this->pos, 4));
             break;
         }
         $this->pos += $bytes;
         return $value;
     }
+    protected function _getp($bytes, $unpack) {
+        // Avoid creating an entire BytesView just to convert to a
+        // string for unpacking
+        $value = unpack($unpack, $this->stream->substr($this->pos, $bytes));
+        $this->pos += $bytes;
+
+        return $value;
+    }
 
     protected function _getx($bytes) {
-        $value = substr($this->stream, $this->pos, $bytes);
+        $value = $this->stream->slice($this->pos, $bytes);
         $this->pos += $bytes;
 
         return $value;
     }
 
     function check($block) {
-        $sum = 0; $bytes = strlen($block['data']); $bs = 1024;
+        $sum = 0; $bytes = $block['data']->length; $bs = 1024;
         for ($i=0; $i < $bytes; $i+=$bs) {
-            $b = unpack('C*', substr($block['data'], $i, min($bs, $bytes-$i)));
+            $b = unpack('C*', $block['data']->substr($i, min($bs, $bytes-$i)));
             $sum += array_sum($b);
             $sum = $sum % 65536;
         }
