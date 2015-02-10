@@ -31,8 +31,9 @@ abstract class Application {
     var $namespace;
     var $urls_path = 'urls.inc';
 
-    function __construct($root=false) {
-        $this->root = $root ?: dirname(__file__);
+    function __construct($project=false) {
+        $RC = new \ReflectionClass($this);
+        $this->root = dirname($RC->getFilename());
     }
 
     /**
@@ -70,6 +71,10 @@ abstract class Application {
         $namespace = explode('\\', $class);
         array_pop($namespace);
         return implode('\\', $namespace);
+    }
+    function getName() {
+        $parts = explode('\\', $this->getNamespace());
+        return strtolower(array_pop($parts));
     }
     
     /**
@@ -140,7 +145,7 @@ abstract class Application {
     }
 
     function getI18nFolder() {
-        return $this->root . 'I18n';
+        return $this->root . '/I18n';
     }
     
     static function asRoute($url) {
@@ -156,5 +161,27 @@ abstract class Application {
      */
     function getTemplateContexts() {
         return false;
+    }
+    
+    // ------ CLI interfaces -----------------
+    function getCliModules() {
+        $app_mods = array();
+        
+        if (!is_dir($this->root . '/Cli'))
+            return $app_mods;
+        
+        $mods = new \FilesystemIterator($this->root . '/Cli',
+            \FilesystemIterator::UNIX_PATHS | \FilesystemIterator::SKIP_DOTS);
+        foreach ($mods as $M) {
+            if (substr($M, -4) != '.php')
+                continue;            
+            
+            require_once($M->getRealPath());
+            $className = $this->getFullNamespace() . '\\Cli\\'
+                . $M->getBasename('.php');
+            $module = new $className();
+            $app_mods[$module->getName()] = $module;
+        }
+        return $app_mods;
     }
 }

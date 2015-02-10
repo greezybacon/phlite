@@ -96,18 +96,6 @@ abstract class BaseHandler implements Handler {
         $this->middleware->reverse()->processResponse($request, $response);
         return $response;
     }
-
-    function getPathInfo() {
-        if (isset($_SERVER['PATH_INFO']))
-            return $_SERVER['PATH_INFO'];
-
-        if (isset($_SERVER['ORIG_PATH_INFO']))
-            return $_SERVER['ORIG_PATH_INFO'];
-
-        // TODO: construct possible path info.
-
-        return null;
-    }
     
     function getProject() {
         return $this->project;

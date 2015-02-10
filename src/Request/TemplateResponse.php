@@ -3,6 +3,7 @@
 namespace Phlite\Request;
 
 use Phlite\Template\Exception\TemplateNotFound;
+use Phlite\Template\Extension;
 use Phlite\Template\TemplateContext;
 
 class TemplateResponse {
@@ -24,6 +25,7 @@ class TemplateResponse {
         $env = new \Twig_Environment($loader, [
             'charset' => $request->getCharset(),
         ]);
+        $env->addExtension(new Extension\Url())
         if (!($template = $env->loadTemplate($this->template)))
             throw new TemplateNotFound($this->template);
 

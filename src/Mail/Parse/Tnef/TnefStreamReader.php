@@ -102,7 +102,7 @@ class TnefStreamReader implements \Iterator {
             'data' => $this->_getx($length),
             'checksum' => $this->_geti(16)
         );
-
+            
         if ($this->options['checksum'])
             $this->check($this->current);
     }

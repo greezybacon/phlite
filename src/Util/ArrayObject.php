@@ -72,7 +72,7 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
     
     // Iterator
     function current() { return current($this->storage); }
-    function key() { return current($this->storage); }
+    function key() { return key($this->storage); }
     function next() { return next($this->storage); }
     function rewind() { return reset($this->storage); }
     function valid() { return null != key($this->storage); }

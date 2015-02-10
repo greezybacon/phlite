@@ -12,29 +12,29 @@ class ModelBase {
         'pk' => false
     );
 
-    var $ht;
-    var $dirty = array();
+    var $__ht__;
+    var $__dirty__ = array();
     var $__new__ = false;
     var $__deleted__ = false;
     var $__deferred__ = array();
 
     function __construct($row) {
-        $this->ht = $row;
+        $this->__ht__ = $row;
     }
 
     function get($field, $default=false) {
-        if (array_key_exists($field, $this->ht))
-            return $this->ht[$field];
+        if (array_key_exists($field, $this->__ht__))
+            return $this->__ht__[$field];
         elseif (isset(static::$meta['joins'][$field])) {
             // Make sure joins were inspected
             if (!static::$meta instanceof ModelMeta)
                 static::_inspect();
             $j = static::$meta['joins'][$field];
             // Support instrumented lists and such
-            if (isset($this->ht[$j['local']])
+            if (isset($this->__ht__[$j['local']])
                     && isset($j['list']) && $j['list']) {
                 $fkey = $j['fkey'];
-                $v = $this->ht[$field] = new InstrumentedList(
+                $v = $this->__ht__[$field] = new InstrumentedList(
                     // Send Model, Foriegn-Field, Local-Id
                     array($fkey[0], $fkey[1], $this->get($j['local']))
                 );
@@ -44,8 +44,8 @@ class ModelBase {
             elseif (isset($j['fkey'])
                     && ($class = $j['fkey'][0])
                     && class_exists($class)) {
-                return $this->ht[$field] = $class::lookup(
-                    array($j['fkey'][1] => $this->ht[$j['local']]));
+                return $this->__ht__[$field] = $class::lookup(
+                    array($j['fkey'][1] => $this->__ht__[$j['local']]));
             }
         }
         elseif (isset($this->__deferred__[$field])) {
@@ -54,7 +54,7 @@ class ModelBase {
                 ->values_flat($field)
                 ->one();
             if ($row)
-                return $this->ht[$field] = $row[0];
+                return $this->__ht__[$field] = $row[0];
         }
         elseif ($field == 'pk') {
             return $this->getPk();
@@ -71,11 +71,11 @@ class ModelBase {
     }
 
     function __isset($field) {
-        return array_key_exists($field, $this->ht)
+        return array_key_exists($field, $this->__ht__)
             || isset(static::$meta['joins'][$field]);
     }
     function __unset($field) {
-        unset($this->ht[$field]);
+        unset($this->__ht__[$field]);
     }
 
     function set($field, $value) {
@@ -85,7 +85,7 @@ class ModelBase {
             $j = static::$meta['joins'][$field];
             if ($j['list'] && ($value instanceof InstrumentedList)) {
                 // Magic list property
-                $this->ht[$field] = $value;
+                $this->__ht__[$field] = $value;
                 return;
             }
             if ($value === null) {
@@ -95,7 +95,7 @@ class ModelBase {
                 if ($value->__new__)
                     $value->save();
                 // Capture the object under the object's field name
-                $this->ht[$field] = $value;
+                $this->__ht__[$field] = $value;
                 $value = $value->get($j['fkey'][1]);
                 // Fall through to the standard logic below
             }
@@ -107,13 +107,13 @@ class ModelBase {
             // Capture the foreign key id value
             $field = $j['local'];
         }
-        $old = isset($this->ht[$field]) ? $this->ht[$field] : null;
+        $old = isset($this->__ht__[$field]) ? $this->__ht__[$field] : null;
         if ($old != $value) {
             // isset should not be used here, because `null` should not be
             // replaced in the dirty array
-            if (!array_key_exists($field, $this->dirty))
-                $this->dirty[$field] = $old;
-            $this->ht[$field] = $value;
+            if (!array_key_exists($field, $this->__dirty__))
+                $this->__dirty__[$field] = $old;
+            $this->__ht__[$field] = $value;
         }
     }
     function __set($field, $value) {
@@ -150,7 +150,7 @@ class ModelBase {
 
     /**
      * lookup
-     *
+     * 
      * Retrieve a record by its primary key. This method may be short
      * circuited by model caching if the record has already been loaded by
      * the database. In such a case, the database will not be consulted for
@@ -175,6 +175,9 @@ class ModelBase {
      *
      * Returns:
      * <ModelBase> instance if the lookup succeeded, and NULL otherwise.
+     *
+     * Throws:
+     * Db\Exception\NotUnique if the criteria does not hit a single object
      */
     static function lookup($criteria) {
         // Model::lookup(1), where >1< is the pk value
@@ -212,10 +215,10 @@ class ModelBase {
     }
 
     function save($refetch=false) {
-        if (count($this->dirty) === 0)
+        if (count($this->__dirty__) === 0)
             return true;
         elseif ($this->__deleted__)
-            throw new DbError('Trying to update a deleted object');
+            throw new Exception\OrmError('Trying to update a deleted object');
 
         $ex = Manager::save($this);
         try {
@@ -223,7 +226,7 @@ class ModelBase {
             if ($ex->affected_rows() != 1)
                 return false;
         }
-        catch (DbError $e) {
+        catch (Exception\OrmError $e) {
             return false;
         }
 
@@ -232,13 +235,13 @@ class ModelBase {
         if ($this->__new__) {
             if (count($pk) == 1)
                 // XXX: Ensure AUTO_INCREMENT is set for the field
-                $this->ht[$pk[0]] = $ex->insert_id();
+                $this->__ht__[$pk[0]] = $ex->insert_id();
             $this->__new__ = false;
             Signal::send('model.created', $this);
             $this->__onload();
         }
         else {
-            $data = array('dirty' => $this->dirty);
+            $data = array('dirty' => $this->__dirty__);
             Signal::send('model.updated', $this, $data);
         }
         # Refetch row from database
@@ -248,9 +251,9 @@ class ModelBase {
             // return this object — i.e. actually fetch from database
             ModelInstanceManager::uncache($this);
             $self = static::lookup($this->get('pk'));
-            $this->ht = $self->ht;
+            $this->__ht__ = $self->__ht__;
         }
-        $this->dirty = array();
+        $this->__dirty__ = array();
         return $this->get($pk[0]);
     }
 
@@ -268,7 +271,7 @@ class ModelBase {
     private function getPk() {
         $pk = array();
         foreach ($this::$meta['pk'] as $f)
-            $pk[$f] = $this->ht[$f];
+            $pk[$f] = $this->__ht__[$f];
         return $pk;
     }
 }

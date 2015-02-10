@@ -35,8 +35,10 @@ class BytesView extends Bytes {
     }
     
     function truncate($length) {
+        if ($length < 0)
+            throw new \InvalidArgumentException('$length must be positive');
         $this->end = $this->start + $length;
-        $this->length = max(0, $this->end - $this->start);
+        $this->length = $this->end - $this->start;
         return $this;
     }
 

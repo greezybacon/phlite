@@ -7,21 +7,27 @@ class Route {
     const APPLICATION = 0x0001;         // sub-dispatch application routes
     
 	var $capture_groups;
+    var $prefix = false;
+    var $regex;
+    var $target;
+    var $args;
+    var $flags;
 	
-    function __construct($regex, $view, $args=false, $flags=false) {
+    function __construct($regex, $view, $args=array(), $flags=false) {
         # Add the slashes for the Perl syntax
-        $this->regex = "@" . $regex . "@";
+        $this->regex = $regex;
         $this->target = $view;
-        $this->args = ($args) ? $args : array();
-        $this->prefix = false;
+        $this->args = $args;
         $this->flags = $flags;
     }
 
-    function setPrefix($prefix) { $this->prefix = $prefix; }
+    function setPrefix($prefix) { 
+        $this->prefix = $prefix; 
+    }
 
     function matches($url) {
         $matches = array();
-        if (preg_match($this->regex, $url, $matches) == 1) {
+        if (preg_match('@'.$this->regex.'@', $url, $matches) == 1) {
             $args = array();
             // XXX: Perhaps we should keep all the args and actually attempt named argument invocation of the target
             for ($i=1; ; $i++) {

@@ -4,8 +4,6 @@ namespace Phlite\Request;
 
 class HttpResponse extends BaseResponse {
 
-    var $headers = array();
-
     function __construct($stream, $status=200, $type='text/html') {
         $this->body = $stream;
         $this->status = $status;
@@ -29,21 +27,37 @@ class HttpResponse extends BaseResponse {
         default:  return '500 Internal Server Error';
         endswitch;
     }
-
-    function output() {
-        $charset = ($this->body instanceof BaseString)
-            ? $this->body->getEncoding() : 'utf-8';
-        $length = ($this->body instanceof BaseString)
+    
+    function getLength() {
+        return ($this->body instanceof BaseString)
             ? $this->body->getLength() : strlen($this->body);
+    }
+    
+    function getEncoding() {
+        return ($this->body instanceof BaseString)
+            ? $this->body->getEncoding() : 'utf-8';
+    }
+    
+    function output() {
+        $charset = $this->getEncoding();
+        $length = $this->getLength();
 
         // XXX: This breaks the CGI interface rules
         header('HTTP/1.1 '.self::header_code_verbose($this->status));
-		header('Status: '.self::header_code_verbose($this->type)."\r\n");
-		header("Content-Type: {$this->type}; charset=$charset\r\n");
-        # header('Content-Length: '.$length."\r\n\r\n");
+		header('Status: '.self::header_code_verbose($this->status));
+		header("Content-Type: {$this->type}; charset=$charset");
+        # header('Content-Length: '.$length);
+        $this->sendHeaders();        
+        $this->sendBody();
+    }
+    
+    function sendHeaders() {
 		foreach ($this->headers as $name=>$content)
 			header("$name: $content\r\n");
-       	echo (string) $this->body;
+    }
+    
+    function sendBody() {
+        echo (string) $this->body;
     }
 
     static function forStatus($status, $message=null, $type='text/html') {

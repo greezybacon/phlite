@@ -2,9 +2,9 @@
 
 namespace Phlite\Cli;
 
-use Phlite\Io\TextStream;
+use Phlite\Io;
 
-class Module {
+abstract class Module {
     static $registry = array();
 
     var $options = array();
@@ -27,8 +27,8 @@ class Module {
             'help'=>"Display this help message");
         foreach ($this->options as &$opt)
             $opt = new Option($opt);
-        $this->stdout = new TextStream('php://output');
-        $this->stderr = new TextStream('php://stderr');
+        $this->stdout = new Io\OutputStream('php://output');
+        $this->stderr = new Io\OutputStream('php://stderr');
     }
 
     function showHelp() {
@@ -128,27 +128,23 @@ class Module {
         die();
     }
 
-    function _run($module_name) {
+    function _run($module_name=false) {
         $this->module_name = $module_name;
         $this->parseOptions();
         return $this->run($this->_args, $this->_options);
     }
 
-    /* abstract */
-    function run($args, $options) {
+    abstract function run($args, $options);
+    
+    function getName() {
+        $class = get_class($this);
+        $parts = explode('\\', $class);
+        return strtolower(array_pop($parts));
     }
 
     function fail($message) {
         $this->stderr->write($message . "\n");
         die();
-    }
-
-    static function register($action, $class) {
-        self::$registry[$action] = new $class();
-    }
-
-    static function getInstance($action) {
-        return self::$registry[$action];
     }
 
     function parseArgs($argv) {

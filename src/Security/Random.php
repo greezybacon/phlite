@@ -20,8 +20,9 @@ class Random {
         $mask = (1 << $bits_per_char) - 1;
         $loops = (int) (32 / $bits_per_char);
         $output = '';
-        foreach (str_split($data, 4) as $B) {
-            list(,$int) = unpack('V', $B);
+        $numbers = unpack('V*', $data);
+        array_shift($numbers);
+        foreach ($numbers as $int) {
             for ($i = $loops; $i > 0; $i--) {
                 $output .= $chars[($int & $mask) % $char_count];
                 $int >>= $bits_per_char;

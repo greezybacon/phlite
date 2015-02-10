@@ -40,6 +40,8 @@ Codec::register(function($encoding) {
         
     if (!$mb_encodings)
         $mb_encodings = array_map('strtolower', mb_list_encodings());
+
+    // Normalize received encoding
     
     if (in_array(strtolower($encoding), $mb_encodings))
         return new MbString($encoding);

@@ -12,7 +12,7 @@ abstract class Middleware {
     function processRequest($request) {
     }
 
-    function processView($request, $func) {
+    function processView($request, $view) {
     }
 
     function processTemplateResponse($request, $response) {

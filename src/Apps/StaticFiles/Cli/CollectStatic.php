@@ -1,9 +1,11 @@
 <?php
 
-namespace Phlite\Apps\Static\Cli;
+namespace Phlite\Apps\StaticFiles\Cli;
 
 use Phlite\Cli;
 
-class CollectStatic extends Cli\Module {
-    
+class CollectStatic extends Cli\Module {    
+    function run($args, $options) {
+        $this->stdout->writeline('Hello');
+    }
 }
