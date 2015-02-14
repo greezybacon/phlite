@@ -2,9 +2,9 @@
 
 namespace Phlite\Project;
 
-use Phlite\Util\Dict;
+use Phlite\Util;
 
-class Settings extends Dict {
+class Settings extends Util\ArrayObject {
 
     function __construct($filename=false) {
         parent::__construct();
@@ -18,14 +18,15 @@ class Settings extends Dict {
         
         $scope = (include $filename);
         if (is_array($scope)) {
-            return $this->update($returned);
+            return $this->update($scope);
         }
 
         $scope = get_defined_vars();
-        $locals = array('returned', 'filename', 'this');
+        $locals = array('returned', 'filename', 'this', 'scope');
         foreach ($locals as $k) {
             unset($scope[$k]);
         }
-        return $this->update($scope);
+        
+        $this->update($scope);
     }
 }

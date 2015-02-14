@@ -17,7 +17,7 @@ extends Request\Middleware {
     
     function processView($request, $view) {
         // Automatically add the :CSRF token to the session
-        if ($request->session && $request->user) {
+        if (isset($request->session) && isset($request->user)) {
             if (!isset($request->session[':CSRF'])) {
                 $this->session[':CSRF'] = new CsrfToken();
             }

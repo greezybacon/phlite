@@ -2,6 +2,7 @@
 
 namespace Phlite\Request;
 
+use Phlite\Project;
 use Phlite\Template\Exception\TemplateNotFound;
 use Phlite\Template\Extension;
 use Phlite\Template\TemplateContext;
@@ -25,7 +26,7 @@ class TemplateResponse {
         $env = new \Twig_Environment($loader, [
             'charset' => $request->getCharset(),
         ]);
-        $env->addExtension(new Extension\Url())
+        $env->addExtension(new Extension\Url());
         if (!($template = $env->loadTemplate($this->template)))
             throw new TemplateNotFound($this->template);
 
@@ -37,7 +38,8 @@ class TemplateResponse {
 
     function _getLoader($request) {
         $loaders = array();
-        foreach ($request->getSettings()->get('TEMPLATE_LOADERS') as $LC) {
+        $proj = Project::getCurrent();
+        foreach ($proj->getSettings()->get('TEMPLATE_LOADERS') as $LC) {
             if ($loader = $LC::getLoader($request)) {
                 if (is_array($loader))
                     $loaders = array_merge($loaders, $loader);

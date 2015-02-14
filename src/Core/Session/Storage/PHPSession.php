@@ -15,6 +15,10 @@ extends SessionBase {
     static $lifetime = 86400;
     static $session_name = 'PHLITE_SESS';
     
+    function create() {
+        session_start(); // ?
+    }
+    
     function exists($id) {
         // ??
         return false;
@@ -35,7 +39,7 @@ extends SessionBase {
         $ttl = $ttl 
             ?: $settings->get('SESSION_IDLE')
             ?: ini_get('session.gc_maxlifetime')
-            ?: static::$lifetime
+            ?: static::$lifetime;
         ini_set('session.gc_maxlifetime', $ttl);
         
         // Set specific session name.

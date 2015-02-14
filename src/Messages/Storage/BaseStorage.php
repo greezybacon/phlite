@@ -43,7 +43,7 @@ abstract class BaseStorage implements StorageBackend {
         $this->used = true;
         $messages = $this->load();
         if ($this->queued) {
-            $messages = array_merge($messages, $this->queued);
+            $messages->extend($this->queued);
             $this->queued = array();
         }
         return new \ArrayIterator($messages);
@@ -54,7 +54,7 @@ abstract class BaseStorage implements StorageBackend {
             return $this->store($this->queued, $response);
         }
         else {
-            $messages = array_merge($this->load(), $this->queued);
+            $messages = $this->load()->extend($this->queued);
             return $this->store($messages, $response);
         }
     }

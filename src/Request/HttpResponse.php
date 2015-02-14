@@ -4,6 +4,9 @@ namespace Phlite\Request;
 
 class HttpResponse extends BaseResponse {
 
+    var $status;
+    var $type;
+
     function __construct($stream, $status=200, $type='text/html') {
         $this->body = $stream;
         $this->status = $status;
@@ -62,5 +65,9 @@ class HttpResponse extends BaseResponse {
 
     static function forStatus($status, $message=null, $type='text/html') {
         return new HttpResponse($message ?: '', $status, $type);
+    }
+    
+    function getStatusCode() {
+        return $this->status;
     }
 }

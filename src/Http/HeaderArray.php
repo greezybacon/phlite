@@ -14,9 +14,8 @@ use Phlite\Util;
  * function.
  */
 class HeaderArray
-extends Util\ArrayObject
-implements \IteratorAggregate {
-    
+extends Util\ArrayObject {
+     
     function __construct() {
         parent::__construct($_SERVER);
     }

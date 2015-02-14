@@ -2,7 +2,7 @@
 
 namespace Phlite\Project;
 
-use Phlite\Dispatch\Dispatcher;
+use Phlite\Dispatch;
 use Phlite\Dispatch\Route;
 use Phlite\Project;
 
@@ -54,12 +54,28 @@ abstract class Application {
      * );
      */
     function getUrls() {
-        if ($this->root . '/' . $this->urls_path)
+        if (is_file($this->root . '/' . $this->urls_path))
             return (include $this->root . '/' . $this->urls_path);
     }
     
+    function getDispatchRoot() {
+        return false;
+    }
+    
+    /**
+     * Request a dispatcher which can be used to dispatch a request for this
+     * application. The application should be registered with the project's
+     * dispatcher.
+     */
+    function getDispatcher() {
+        if ($urls = $this->getUrls())
+            return new Dispatch\RegexDispatcher($this->getUrls());
+        elseif ($root = $this->getDispatchRoot())
+            return new Dispatch\MethodDispatcher($root);
+    }
+    
     function resolve($url, $args=null, $setCurrentProject=true) {
-        $disp = new Dispatcher($this->getUrls());
+        $disp = $this->getDispatcher();
         if ($setCurrentProject) {
             Project::getCurrent()->setCurrentApp($this);
         }

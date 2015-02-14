@@ -17,7 +17,7 @@ class Route {
         # Add the slashes for the Perl syntax
         $this->regex = $regex;
         $this->target = $view;
-        $this->args = $args;
+        $this->args = $args ?: array();
         $this->flags = $flags;
     }
 

@@ -2,22 +2,21 @@
 
 namespace Phlite\Template\Loader;
 
+use Phlite\Project;
+
 class Application
 extends BaseLoader {    
 
     static function getLoader($request) {
-        if (!($app = $request->getApplication()))
+        if (!($app = Project::getCurrent()->getCurrentApp()))
             return false;
 
         $root = $app->getFilesystemRoot();
-        $dir = $app->getTemplateDir();
+        $dir = $request->getSettings()->get('TEMPLATE_DIR', 'Templates');
+        
         // Add the local application as the root namespace
-        $loader = new Twig_LoaderFilesystem("$root/$dir");
+        $loader = new \Twig_Loader_Filesystem("$root/$dir");
 
-        foreach ($app->getProject()->getApplications() as $app) {            
-            if (file_exists("$root/$dir"))
-                $loader->addPath("$root/$dir", $app->getNamespace());
-        }
         return $loader;
     }
 }

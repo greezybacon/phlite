@@ -53,8 +53,10 @@ class BufferedInputStream implements InputStream {
         do {
             if ($this->eol) {
                 $more = stream_get_line($this->stream, $this->blocksize, $this->eol);
+            }
             else {
                 $more = fgets($this->stream, $this->blocksize);
+            }
                 
             // Sockets may return boolean FALSE for EOF and empty string 
             // for client disconnect.

@@ -87,4 +87,8 @@ abstract class BaseView {
 	function templateResponse($template, $context=array()) {
 		$response = new TemplateResponse($template);
 	}
+    
+    static function bind(array $args) {
+        return new BoundView(new static(), $args);
+    }
 }

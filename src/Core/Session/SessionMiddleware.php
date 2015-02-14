@@ -12,24 +12,25 @@ class SessionMiddleware extends Middleware {
         $bk = $settings->get('SESSION_BACKEND');
         
         $session = new $bk($request->COOKIES->get(
-            $settings->get('SESSION_COOKIE_NAME', null)))
+            $settings->get('SESSION_COOKIE_NAME', null))
+        );
                         
         // Verify a few items
-        if ($session->isValid())
+        //if ($session->isValid())
             $request->session = $session;
     }
     
     function processResponse($request, $response) {
         $settings = $request->getSettings();
         
-        if ($request->session->modified) {
+        if ($request->session->isModified()) {
             $request->session->save();
             // XXX: $response->setCookie()
             setcookie(
                 $settings->get('SESSION_COOKIE_NAME'),
                 $request->session->getSessionKey(),
                 $request->session->getExpiryTime(),
-                ROOT_PATH,
+                $request->getRootPath(),
                 $request->getCookieDomain(),
                 $request->isHttps(),
                 $settings->get('SESSION_COOKIE_HTTPONLY', null)

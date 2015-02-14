@@ -9,7 +9,7 @@ namespace Phlite\Util;
  *
  */
 class ArrayObject 
-implements \Iterator, \ArrayAccess, \Serializable, \Countable {
+implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
     
     protected $storage = array();
     
@@ -70,12 +70,8 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
     // Countable
     function count() { return count($this->storage); }
     
-    // Iterator
-    function current() { return current($this->storage); }
-    function key() { return key($this->storage); }
-    function next() { return next($this->storage); }
-    function rewind() { return reset($this->storage); }
-    function valid() { return null != key($this->storage); }
+    // IteratorAggregate
+    function getIterator() { return new \ArrayIterator($this->storage); }
     
     // ArrayAccess
     function offsetExists($offset) { 

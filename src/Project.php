@@ -2,6 +2,7 @@
 
 namespace Phlite;
 
+use Phlite\Dipatch;
 use Phlite\Project\Settings;
 use Phlite\Util;
 
@@ -16,7 +17,7 @@ class Project {
     var $settings_file = '';
     
     static $global_settings = 'Phlite\Project\DefaultSettings';
-    static $current_project = null;
+    private static $current_project;
 
     protected $settings;
     protected $applications = array();
@@ -25,11 +26,11 @@ class Project {
     protected $_tcps;
 
     function __construct($settings=false) {
-        $this->settings = new $this::$global_settings();
+        $this->settings = new static::$global_settings();
         if ($settings)
             $this->loadSettings($settings);
 		spl_autoload_register(array($this, '_autoload'));
-        if (!isset($this::$current_project))
+        if (!isset(self::$current_project))
             self::$current_project = $this;
     }
 
@@ -69,7 +70,7 @@ class Project {
     }
 
     function loadSettings($filename=false) {
-        $this->settings->loadFile($filename, $this);
+        $this->settings->loadFile($filename);
     }
 
     // -------- DATABASE ----------------------------
@@ -102,6 +103,11 @@ class Project {
         );
     }
     
+    function getDispatcher() {
+        if ($this->getUrls())
+            return new Dispatch\RegexDispatcher($this->getUrls());
+    }
+    
     function getUrls() {
         return $this->getSettings()->get('URLS') ?: (include 'urls.php');
     }
@@ -112,6 +118,6 @@ class Project {
     
     // Allow static calls as singleton calls
     static function __callStatic($what, $how) {
-        return call_user_func_array(static::getCurrent(), $how);
+        return call_user_func_array(self::getCurrent(), $how);
     }
 }

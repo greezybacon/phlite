@@ -21,12 +21,12 @@ $APPLICATIONS = new ArrayObject([
 ]);
 $TEMPLATE_DIRS = [ 'Templates', ];
 $TEMPLATE_CONTEXT_PROCESSORS = new ArrayObject([
-    'Phlite\Auth\TemplateContext',
-    'Phlite\Messages\TemplateContext',
+    // 'Phlite\Auth\TemplateContext',
+    // 'Phlite\Messages\TemplateContext',
 ]);
 $TEMPLATE_LOADERS = new ArrayObject([
-    'Phlite\Template\Loaders\Filesystem',
-    'Phlite\Template\Loaders\AppDirectory',
+    'Phlite\Template\Loader\Filesystem',
+    'Phlite\Template\Loader\Application',
 ]);
 
 # Request handling ----------------------
@@ -40,3 +40,6 @@ $MIDDLEWARE_CLASSES = new ArrayObject([
 ]);
 
 # Other stuff ---------------------------
+
+$SESSION_BACKEND = 'Phlite\Core\Session\Storage\PHPSession';
+$SESSION_COOKIE_NAME = 'PHLITE_SESSION';

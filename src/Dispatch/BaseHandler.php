@@ -64,8 +64,11 @@ abstract class BaseHandler implements Handler {
             return $resp;
 
         // Resolve the view for this request
-        $disp = new Dispatcher($this->project->getUrls());
+        $disp = $this->project->getDispatcher();
+        $request->setDispatcher($disp);
         $view = $disp->resolve($request->getPath());
+        
+        // Handle 404 errors
         if (!$view) {
             // TODO: Serve some error page
             throw new Http404('Broken link');

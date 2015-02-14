@@ -30,6 +30,6 @@ implements Response {
     function setCookie($name, $value, $expires=null, $domain=null,
         $secure=false, $httponly=false
     ) {
-        setcookie($name, $value)
+        setcookie($name, $value);
     }
 }

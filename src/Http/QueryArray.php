@@ -2,6 +2,8 @@
 
 namespace Phlite\Http;
 
+use Phlite\Util;
+
 /**
  * Slight extension of the ArrayObject which adds convenience methods for
  * interacting with query strings.
@@ -9,7 +11,7 @@ namespace Phlite\Http;
 class QueryArray
 extends Util\ArrayObject {
     
-    $this->frozen = false;
+    var $frozen = false;
     
     function __construct($query, $frozen=true) {
         if (is_string($query)) {
@@ -21,7 +23,7 @@ extends Util\ArrayObject {
     }
     
     static function fromQueryString($query) {
-        return new static($query, false)
+        return new static($query, false);
     }
     
     function toQuery($separator='&') {

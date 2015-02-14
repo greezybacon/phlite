@@ -2,6 +2,8 @@
 
 namespace Phlite\Core\Session;
 
+use Phlite\Project;
+use Phlite\Request\Request;
 use Phlite\Security\Random;
 use Phlite\Util\Dict;
 
@@ -18,6 +20,7 @@ abstract class SessionBase
 implements \Iterator, \ArrayAccess, \Serializable, \Countable {
     
     static $VALID_KEY_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    static $idle_time = 30;
     
     // ArrayObject like interface ----------------------
     protected $storage;
@@ -185,11 +188,15 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
         }
     }
     
+    function getSessionKey() {
+        return session_id();
+    }
+    
     function getExpiryTime() {
         $settings = Project::getCurrent()->getSettings();
-        return time() + ($settings->get('SESSION_IDLE')
-            ?: ini_get('session.gc_maxlifetime')
-            ?: static::$lifetime),
+        return time() + ($settings->get('SESSION_IDLE',
+            ini_get('session.gc_maxlifetime')
+            ?: static::$lifetime));
     }
     
     protected function setupInternal() {
@@ -228,9 +235,7 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
         }
 
         // 3. Check for idle timeout
-        $deadband = isset($settings['SESSION_IDLE'])
-            ? $settings['SESSION_IDLE']
-            : static::$idle_time;
+        $deadband = $settings->get('SESSION_IDLE', static::$idle_time);
         if (isset($this->internal['idle'])
             && time() - $this->internal['idle'] > $deadband
         ) {
@@ -240,6 +245,10 @@ implements \Iterator, \ArrayAccess, \Serializable, \Countable {
     
     function isEmpty() {
         return !isset($this->session_id) && !isset($this->storage);
+    }
+    
+    function isModified() {
+        return $this->modified;
     }
     
     // Backend specific methods -------------------------------

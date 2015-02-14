@@ -3,6 +3,8 @@
 namespace Phlite\Request;
 
 use Phlite\Dispatch\BaseHandler;
+use Phlite\Forms;
+use Phlite\Http;
 use Phlite\Io;
 use Phlite\Util;
 
@@ -25,9 +27,11 @@ extends Io\BufferedInputStream {
     var $GET;
     var $POST;
     var $META;
+    var $COOKIES;
     
     var $handler;
 	var $application;
+    var $dispatcher;
     
     private static $current_request;
 	
@@ -42,9 +46,10 @@ extends Io\BufferedInputStream {
         $this->GET = new Http\QueryArray($_GET);
         $this->POST = new Http\QueryArray($_POST);
         $this->META = new Http\HeaderArray();
+        $this->COOKIES = new Util\ArrayObject($_COOKIE);
             
         // Request as a file
-        parent::__construct('php:://input');
+        parent::__construct('php://input');
         
         $this->handler = $handler;
         
@@ -84,7 +89,7 @@ extends Io\BufferedInputStream {
         }
     }
 
-    function getPathInfo() {
+    function getPath() {
         if (!isset($this->path_info)) {
             $this->path_info = @$_SERVER['PATH_INFO']
                 ?: @$_SERVER['ORIG_PATH_INFO']
@@ -92,7 +97,7 @@ extends Io\BufferedInputStream {
                 // Attempt to discover path_info
                 ?: substr($_SERVER['PHP_SELF'],
                     strpos($_SERVER['PHP_SELF'], $_SERVER['SCRIPT_NAME'])
-                        + strlen($_SERVER['SCRIPT_NAME']))
+                        + strlen($_SERVER['SCRIPT_NAME']));
         }
         return $this->path_info;
     }
@@ -112,7 +117,7 @@ extends Io\BufferedInputStream {
     
     // Useful for cookie domains
     function getCookieDomain() {
-        if (Validator::is_ip($this->host))
+        if (Forms\Validation::isIp($this->host))
             return $this->host.':'.$this->port;
         
         return $this->host;
@@ -162,5 +167,12 @@ extends Io\BufferedInputStream {
     
     static function getCurrent() {
         return self::$current_request;
+    }
+    
+    function setDispatcher($dispatcher) {
+        $this->dispatcher = $dispatcher;
+    }
+    function getDispatcher() {
+        return $this->dispatcher;
     }
 }
