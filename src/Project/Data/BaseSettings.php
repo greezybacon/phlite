@@ -33,13 +33,19 @@ $TEMPLATE_LOADERS = new ArrayObject([
 
 $HANDLER = 'Phlite\Request\Handlers\ApacheHandler';
 $MIDDLEWARE_CLASSES = new ArrayObject([
-    'Phlite\Request\Middleware\DbMiddleware',
     'Phlite\Core\Session\SessionMiddleware',
     'Phlite\Security\Features\Csrf\Middleware',
     'Phlite\Messages\MessageMiddleware',
+    'Phlite\Apps\StaticFiles\Middleware',
 ]);
 
 # Other stuff ---------------------------
 
 $SESSION_BACKEND = 'Phlite\Core\Session\Storage\PHPSession';
 $SESSION_COOKIE_NAME = 'PHLITE_SESSION';
+
+$STATIC_URL = '/static/';
+$STATICFILES_STORAGE = 'Phlite\Apps\StaticFiles\Storage\FilesStorage';
+$STATICFILES_FINDERS = new ArrayObject([
+    'Phlite\Apps\StaticFiles\Finder\Application'
+]);

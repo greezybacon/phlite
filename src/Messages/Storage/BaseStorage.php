@@ -8,11 +8,12 @@ use Phlite\Messages\Messages;
 abstract class BaseStorage implements StorageBackend {
 
     var $level = Messages::NOTSET;
-
-    function __construct($request) {
-        $this->queued = array();
-        $this->used = false;
-        $this->added_new = false;
+    var $queued = array();
+    var $used = false;
+    var $added_new = false;
+    
+    function __construct() {
+        
     }
 
     function isEnabledFor($level) {

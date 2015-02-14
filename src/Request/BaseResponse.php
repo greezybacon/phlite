@@ -16,12 +16,12 @@ implements Response {
         $this->headers[$name] = $value;
     }
 
-    function outputHeaders() {
+    function sendHeaders() {
         foreach ($this->headers as $h=>$v)
             header("$h: $v");
     }
     
-    abstract function output();
+    abstract function output($request);
     
     function deleteCookie($name) {
         // Thanks, http://stackoverflow.com/a/5285982

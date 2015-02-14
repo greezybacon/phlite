@@ -15,8 +15,10 @@ class StreamResponse extends HttpResponse {
      * Return boolean false or throw Io\Eof to indicate end of output.
      */
     function read() {
-        if ($this->stream instanceof Io\InputStream)
-            return $this->stream->read();
+        if ($this->body instanceof Io\InputStream)
+            return $this->body->read();
+        elseif (is_resource($this->body))
+            return fread($this->body, 8192);
     }
     
     function sendBody() {
@@ -27,7 +29,7 @@ class StreamResponse extends HttpResponse {
                 echo $block;
             }
         }
-        catch (Io\Eof as $e) {
+        catch (Io\Eof $e) {
         }
     }
 }

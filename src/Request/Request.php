@@ -90,16 +90,7 @@ extends Io\BufferedInputStream {
     }
 
     function getPath() {
-        if (!isset($this->path_info)) {
-            $this->path_info = @$_SERVER['PATH_INFO']
-                ?: @$_SERVER['ORIG_PATH_INFO']
-                ?: @$_SERVER['REDIRECT_PATH_INFO']
-                // Attempt to discover path_info
-                ?: substr($_SERVER['PHP_SELF'],
-                    strpos($_SERVER['PHP_SELF'], $_SERVER['SCRIPT_NAME'])
-                        + strlen($_SERVER['SCRIPT_NAME']));
-        }
-        return $this->path_info;
+        return $this->handler->getPathInfo();
     }
     
     // Fetch the domain or host part of the Host header

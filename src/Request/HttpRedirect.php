@@ -11,7 +11,7 @@ class HttpRedirect extends HttpResponse {
         $this->delay = $delay;
     }
     
-    function output() {
+    function output($request) {
         $iis = strpos($_SERVER['SERVER_SOFTWARE'], 'IIS') !== false;
         @list($name, $version) = explode('/', $_SERVER['SERVER_SOFTWARE']);
         // Legacy code for older versions of IIS that would not emit the

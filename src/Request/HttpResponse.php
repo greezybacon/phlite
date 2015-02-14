@@ -6,6 +6,10 @@ class HttpResponse extends BaseResponse {
 
     var $status;
     var $type;
+    
+    var $etag;
+    var $last_modified;
+    var $cache_ttl;
 
     function __construct($stream, $status=200, $type='text/html') {
         $this->body = $stream;
@@ -20,6 +24,7 @@ class HttpResponse extends BaseResponse {
         case 201: return '201 Created';
         case 204: return '204 No Content';
         case 205: return '205 Reset Content';
+        case 304: return '304 Not Modified';
         case 400: return '400 Bad Request';
         case 401: return '401 Unauthorized';
         case 403: return '403 Forbidden';
@@ -41,22 +46,48 @@ class HttpResponse extends BaseResponse {
             ? $this->body->getEncoding() : 'utf-8';
     }
     
-    function output() {
-        $charset = $this->getEncoding();
-        $length = $this->getLength();
-
+    function setType($type) {
+        $this->type = $type;
+    }
+    
+    function output($request) {        
+        // Thanks, http://stackoverflow.com/a/1583753/1025836
+        // Timezone doesn't matter here — but the time needs to be
+        // consistent round trip to the browser and back.
+        if ($this->last_modified) {
+            if (!is_numeric($this->last_modified))
+                $this->last_modified = strtotime($this->modified." GMT");
+            if (@strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']) == $this->last_modified) {
+                $this->status = 304;
+            }
+            header("Last-Modified: ".@date('D, d M Y H:i:s', $this->last_modified)." GMT");
+        }
+        if ($this->etag) {
+            header('ETag: "'.$this->etag.'"');
+            if (@trim($_SERVER['HTTP_IF_NONE_MATCH'], '"') == $this->etag) {
+                $this->status = 304;
+            }
+        }
+        if ($this->cache_ttl) {
+            header("Cache-Control: private, max-age={$this->cache_ttl}");
+            header('Expires: ' . @date('D, d M Y H:i:s', gmdate('U') + $this->cache_ttl)." GMT");
+            header('Pragma: private');
+        }
+        
         // XXX: This breaks the CGI interface rules
         header('HTTP/1.1 '.self::header_code_verbose($this->status));
 		header('Status: '.self::header_code_verbose($this->status));
-		header("Content-Type: {$this->type}; charset=$charset");
-        # header('Content-Length: '.$length);
+        
+        if ($this->status == 304)
+            // Cached. Don't send the usual output
+            return;
+        
+        if (strpos($this->type, 'charset=') === false)
+            $this->type .= '; charset=' . $this->getEncoding();
+		header("Content-Type: {$this->type}");
+        # header('Content-Length: '.$this->getLength());
         $this->sendHeaders();        
         $this->sendBody();
-    }
-    
-    function sendHeaders() {
-		foreach ($this->headers as $name=>$content)
-			header("$name: $content\r\n");
     }
     
     function sendBody() {
@@ -69,5 +100,15 @@ class HttpResponse extends BaseResponse {
     
     function getStatusCode() {
         return $this->status;
+    }
+    
+    function cacheable($etag, $modified, $ttl=3600) {
+        $this->etag = $etag;
+        $this->last_modified = $modified;
+        $this->cache_ttl = $ttl;
+    }
+    
+    function useClientCache() {
+        
     }
 }

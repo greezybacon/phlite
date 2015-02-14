@@ -7,6 +7,7 @@ use Phlite\Http\Exception\HttpException;
 use Phlite\Project;
 use Phlite\Request\MiddlewareList;
 use Phlite\Request\Request;
+use Phlite\Request\Response;
 use Phlite\Request\TemplateResponse;
 use Phlite\Signal;
 use Phlite\View\ErrorView;
@@ -44,7 +45,7 @@ abstract class BaseHandler implements Handler {
         }
 
         $response->setHandler($this);
-        return $response->output();
+        return $response->output($request);
     }
 
     function loadMiddleware() {
