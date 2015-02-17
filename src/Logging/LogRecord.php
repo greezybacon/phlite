@@ -35,8 +35,8 @@ class LogRecord {
         $this->exc_text = null;
         $this->lineno = $lineno;
         $this->funcName = $func;
-        $this->created = $ct;
-        $this->msecs = ($ct - (int)$ct) * 1000;
+        $this->created = (int) $ct;
+        $this->msecs = ($ct - $this->created) * 1000;
         $this->relativeCreated = ($this->created - static::$_startTime)
             * 1000;
     }
@@ -70,4 +70,4 @@ class LogRecord {
     }
 }
 
-LogRecord::$_startTime = microtime(true);
+LogRecord::$_startTime = $_SERVER['REQUEST_TIME_FLOAT'];

@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Db;
+namespace Phlite\Db\Compile;
 
 use Phlite\Db\Backend;
 use Phlite\Db\Exception;
@@ -335,7 +335,8 @@ abstract class SqlCompiler {
     function getJoins() {
         $sql = '';
         foreach ($this->joins as $j)
-            $sql .= $j['sql'];
+            if (isset($j['sql']))
+                $sql .= $j['sql'];
         return $sql;
     }
     

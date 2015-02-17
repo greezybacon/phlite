@@ -15,7 +15,7 @@ abstract class ResultSet implements \Iterator, \ArrayAccess {
         $this->queryset = $queryset;
         if ($queryset) {
             $this->model = $queryset->model;
-            $thi->stmt = $queryset->getQuery();
+            $this->stmt = $queryset->getQuery();
             $connection = Manager::getConnection($this->model);
             $this->resource = $connection->getExecutor($this->stmt);
         }

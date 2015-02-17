@@ -2,6 +2,7 @@
 
 namespace Phlite\Db\Model;
 
+use Phlite\Db\Manager;
 use Phlite\Db\Util;
 
 class QuerySet implements \IteratorAggregate, \ArrayAccess {
@@ -20,7 +21,7 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
     const LOCK_EXCLUSIVE = 1;
     const LOCK_SHARED = 2;
 
-    var $iterator = 'ModelInstanceManager';
+    var $iterator = 'Phlite\Db\Model\ModelInstanceManager';
 
     var $params;
     var $query;
@@ -201,6 +202,7 @@ class QuerySet implements \IteratorAggregate, \ArrayAccess {
 
         // Load defaults from model
         $model = $this->model;
+        $model::_inspect();
         if (!$this->ordering && isset($model::$meta['ordering']))
             $this->ordering = $model::$meta['ordering'];
         if (!$this->related && $model::$meta['select_related'])

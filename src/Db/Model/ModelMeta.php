@@ -14,28 +14,29 @@ use Phlite\Db\DbEngine;
  */
 class ModelMeta implements \ArrayAccess {
 
-    static $base = array(
+    static $defaults = array(
         'pk' => false,
         'table' => false,
         'form' => false,
         'defer' => array(),
         'select_related' => array(),
     );
-    
+
+    var $base;
     var $model;
 
     function __construct($model) {
         $this->model = $model;
-        $meta = $model::$meta + self::$base;
+        $meta = $model::$meta + self::$defaults;
 
         // TODO: Merge ModelMeta from parent model (if inherited)
 
         if (!$meta['table'])
             throw new Exception\ModelConfigurationError(
-                __('Model does not define meta.table'), $model);
+                sprintf('%s: Model does not define meta.table', $model));
         elseif (!$meta['pk'])
             throw new Exception\ModelConfigurationError(
-                __('Model does not define meta.pk'), $model);
+                sprintf('%s: Model does not define meta.pk', $model));
 
         // Ensure other supported fields are set and are arrays
         foreach (array('pk', 'ordering', 'defer') as $f) {

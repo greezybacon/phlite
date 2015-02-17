@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Db;
+namespace Phlite\Db\Compile;
 
 /**
  * Class: Statement

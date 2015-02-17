@@ -116,6 +116,10 @@ class Compiler extends SqlCompiler {
     function quote($what) {
         return "`$what`";
     }
+    
+    function escape($what, $quote=true) {
+        // Use a connection to do this
+    }
 
     /**
      * getWhereClause
@@ -141,7 +145,7 @@ class Compiler extends SqlCompiler {
         return array($where ?: '', $having ?: '');
     }
 
-    function compileCount($queryset) {
+    function compileCount(QuerySet $queryset) {
         $model = $queryset->model;
         $table = $model::$meta['table'];
         list($where, $having) = $this->getWhereHavingClause($queryset);
@@ -153,7 +157,7 @@ class Compiler extends SqlCompiler {
         return $row['count'];
     }
 
-    function compileSelect($queryset) {
+    function compileSelect(QuerySet $queryset) {
         $model = $queryset->model;
         
         // Use an alias for the root model table
@@ -185,10 +189,12 @@ class Compiler extends SqlCompiler {
         // Compile the field listing
         $fields = array();
         $table = $this->quote($table).' '.$rootAlias;
+        $group_by = $fieldMap = array();
+        
         // Handle related tables
         if ($queryset->related) {
             $count = 0;
-            $fieldMap = $theseFields = array();
+            $theseFields = array();
             $defer = $queryset->defer ?: array();
             // Add local fields first
             $model::_inspect();
@@ -257,14 +263,12 @@ class Compiler extends SqlCompiler {
                 $fields[] = $A->toSql($this, $model, true);
                 // TODO: Add to last fieldset in fieldMap
             }
-            $group_by = array();
             foreach ($model::$meta['pk'] as $pk)
                 $group_by[] = $rootAlias .'.'. $pk;
-            if ($group_by)
-                $group_by = ' GROUP BY '.implode(',', $group_by);
         }
-
         $joins = $this->getJoins();
+        $group_by = ($group_by) ? ' GROUP BY '.implode(',', $group_by) : '';
+        
         $sql = 'SELECT '.implode(', ', $fields).' FROM '
             .$table.$joins.$where.$group_by.$having.$sort;
         if ($queryset->limit)
@@ -317,7 +321,7 @@ class Compiler extends SqlCompiler {
         return new Statement($sql, $this->params);
     }
 
-    function compileDelete($model) {
+    function compileDelete(ModelBase $model) {
         $table = $model::$meta['table'];
 
         $where = ' WHERE '.implode(' AND ', $this->compileConstraints($model->pk));
@@ -325,7 +329,7 @@ class Compiler extends SqlCompiler {
         return new Statement($sql, $this->params);
     }
 
-    function compileBulkDelete($queryset) {
+    function compileBulkDelete(QuerySet $queryset) {
         $model = $queryset->model;
         $table = $model::$meta['table'];
         list($where, $having) = $this->getWhereHavingClause($queryset);
@@ -335,7 +339,7 @@ class Compiler extends SqlCompiler {
         return new Statement($sql, $this->params);
     }
 
-    function compileBulkUpdate($queryset, array $what) {
+    function compileBulkUpdate(QuerySet $queryset, array $what) {
         $model = $queryset->model;
         $table = $model::$meta['table'];
         $set = array();
@@ -366,5 +370,9 @@ class Compiler extends SqlCompiler {
             $columns[] = $column;
         }
         return $cache[$table] = $columns;
+    }
+    
+    function compileCreate($modelClass) {
+        // TODO:
     }
 }

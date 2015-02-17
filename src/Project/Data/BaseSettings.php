@@ -17,7 +17,6 @@ $EMAIL_BACKEND = 'Phlite\Mail\Backends\Smtp';
 # Applications --------------------------
 
 $APPLICATIONS = new ArrayObject([
-    'Phlite\Apps\Db\Application',
 ]);
 $TEMPLATE_DIRS = [ 'Templates', ];
 $TEMPLATE_CONTEXT_PROCESSORS = new ArrayObject([
@@ -33,6 +32,7 @@ $TEMPLATE_LOADERS = new ArrayObject([
 
 $HANDLER = 'Phlite\Request\Handlers\ApacheHandler';
 $MIDDLEWARE_CLASSES = new ArrayObject([
+    'Phlite\Request\Middleware\CoreMiddleware',
     'Phlite\Core\Session\SessionMiddleware',
     'Phlite\Security\Features\Csrf\Middleware',
     'Phlite\Messages\MessageMiddleware',

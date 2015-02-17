@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Logging\Handlers;
+namespace Phlite\Logging\Handler;
 
 /**
  * A handler class which writes formatted logging records to disk files

@@ -67,7 +67,7 @@ implements Dispatcher {
             }
             elseif (is_callable($result)) {
                 // We have a callable to be considered the view. We're done.
-                return new View\BoundView($res, $path);
+                return new View\BoundView($result, $args);
             }
             elseif ($result instanceof Dispatcher) {
                 // Delegate to a sub dispatcher

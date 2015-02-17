@@ -4,6 +4,12 @@ namespace Phlite\Apps\StaticFiles\Finder;
 
 use Phlite\Project;
 
+/**
+ * Class: Application
+ *
+ * Finds static files in a 'Static/' folder inside each installed
+ * application.
+ */
 class Application extends BaseFinder {
     
     function locate($path) {
@@ -18,24 +24,15 @@ class Application extends BaseFinder {
     }
     
     function getIterator() {
-        $files = array();
+        $paths = array();
         $project = Project::getCurrent();
         foreach ($project->getApplications() as $A) {
             $root = $A->getFilesystemRoot();
             $full = "{$root}/Static";
-            $relative = strlen($full)+1;
             if (!is_dir($full))
                 continue;
-            $it = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($full, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::SELF_FIRST
-            );
-            foreach ($it as $F) {
-                if (!$F->isFile())
-                    continue;
-                $files[] = [$F, substr($F, $relative)];
-            }
+            $paths[] = $full;
         }
-        return new \ArrayIterator($files);
+        return $this->iterPaths($paths);
     }
 }

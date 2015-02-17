@@ -18,7 +18,7 @@ class ModelBase {
     var $__deleted__ = false;
     var $__deferred__ = array();
 
-    function __construct($row) {
+    function __construct(array $row) {
         $this->__ht__ = $row;
     }
 

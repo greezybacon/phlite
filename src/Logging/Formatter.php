@@ -70,7 +70,8 @@ class Formatter {
      * set the 'converter' attribute in the Formatter class.
      */
     function formatTime($record, $datefmt=null) {
-        $ct = static::$converter($record->created);
+        $ct = $record->created;
+        // TODO: Use static::$converter to convert to localtime
         if ($datefmt) {
             $s = strftime($datefmt, $ct);
         }
@@ -118,8 +119,9 @@ class Formatter {
             }
         }
         if ($record->exc_text) {
-            $s = rtrim($record->exc_text, "\n");
-            $s += $record->exc_text;
+            if (substr($s, -1) != "\n")
+                $s .= "\n";
+            $s .= $record->exc_text;
         }
         return $s;
     }

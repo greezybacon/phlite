@@ -17,7 +17,6 @@ class Manager {
         $this->disable = 0;
         $this->emittedNoHandlerWarning = 0;
         $this->loggerDict = array();
-        $this->loggerClass = null;
     }
 
     /**
@@ -48,7 +47,6 @@ class Manager {
         }
         else {
             $rv = new static::$loggerClass($name);
-            $rv->manager = $this;
             $this->loggerDict[$name] = $rv;
             $this->_fixupParents($rv);
         }
@@ -78,7 +76,7 @@ class Manager {
         $i = strrpos($name, ".");
         $rv = null;
         while ($i > 0 and !$rv) {
-            $substr = substr($rv, 0, $i);
+            $substr = substr($name, 0, $i);
             if (!isset($this->loggerDict[$substr])) {
                 $this->loggerDict[$substr] = new PlaceHolder($alogger);
             }
@@ -92,7 +90,7 @@ class Manager {
                     $obj->append($alogger);
                 }
             }
-            $i = strrpos($name, '.', -$i - 1);
+            $i = strrpos(substr($substr, 0, -$i-1), '.');
         }
         if (!$rv) {
             $rv = $this->root;

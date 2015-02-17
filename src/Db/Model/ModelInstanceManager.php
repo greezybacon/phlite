@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Db;
+namespace Phlite\Db\Model;
 
 class ModelInstanceManager extends ResultSet {
 
@@ -108,7 +108,7 @@ class ModelInstanceManager extends ResultSet {
     }
 
     function fillTo($index) {
-        $func = ($this->map) ? 'getRow' : 'getArray';
+        $func = ($this->map) ? 'fetchRow' : 'fetchArray';
         while ($this->resource && $index >= count($this->cache)) {
             if ($row = $this->resource->{$func}()) {
                 $this->cache[] = $this->buildModel($row);

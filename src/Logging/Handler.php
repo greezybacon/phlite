@@ -49,7 +49,7 @@ abstract class Handler extends Filterer {
     }
 
     function setLevel($level) {
-        $this->level = _checkLevel($level);
+        $this->level = Logger::_checkLevel($level);
     }
 
     function format($record) {

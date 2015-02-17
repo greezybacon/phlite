@@ -159,7 +159,9 @@ class Logger extends Filterer {
     }
 
     function findCaller() {
-        $bt = debug_backtrace();
+        // TODO: Test if Xdebug is faster than debug_backtrace(),
+        //       and also new Exception()->getTrace()
+        $bt = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5);
         array_shift($bt);
         while ($frame = array_shift($bt)) {
             $filename = $frame['file'];
@@ -175,7 +177,7 @@ class Logger extends Filterer {
             $func=null, $extra=null) {
         $rv = new LogRecord($name, $level, $fn, $lno, $msg, $context,
             $exc_info, $func);
-        if ($extra !== null) {
+        if (is_array($extra)) {
             foreach ($extra as $key=>$value) {
                 if (in_array($key, array('message','asctime'))
                         or isset($rv->{$key}))
@@ -188,8 +190,24 @@ class Logger extends Filterer {
         return $rv;
     }
 
-    function _log($level, $msg, $context, $exc_info=null, $extra=null) {
-        list($fn, $lno, $func) = $this->findCaller();
+    function _log($level, $msg, $context) {
+        $exc_info = @$context['exception']; unset($context['exception']);
+        $extra = @$context['extra']; unset($context['extra']);
+        
+        if (!isset($exc_info)) {
+            list($fn, $lno, $func) = $this->findCaller();
+        }
+        elseif (is_array($exc_info)) {
+            $fn = $exc_info['file'];
+            $lno = $exc_info['line'];
+            $func = $exc_info['function'];
+        }
+        elseif ($exc_info instanceof Exception) {
+            $fn = $exc_info->getFile();
+            $lno = $exc_info->getLine();
+            $T = $exc_info->getTrace();
+            $func = $T[0]['function'];
+        }
         $record = $this->makeRecord($this->name, $level, $fn, $lno, $msg,
             $context, $exc_info, $func, $extra);
         $this->handle($record);

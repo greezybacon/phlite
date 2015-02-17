@@ -6,7 +6,7 @@ use Phlite\Db\Backend;
 
 interface SqlExecutor {
     
-    function __construct(Statment $stmt, Backend $bk);
+    function __construct(Statement $stmt, Backend $bk);
     
     // Execute the statement — necessary for DML statements
     function execute();

@@ -179,6 +179,18 @@ abstract class Application {
         return false;
     }
     
+    /**
+     * getMiddleware
+     *
+     * Allows applications to include middleware without requiring the
+     * middleware list in the settings.php file. This should be done sparingly
+     * as it will be difficult for users of this application to disable this
+     * middleware.
+     */
+    function getMiddleware() {
+        return false;
+    }
+    
     // ------ CLI interfaces -----------------
     function getCliModules() {
         $app_mods = array();

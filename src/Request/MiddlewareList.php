@@ -32,6 +32,15 @@ class MiddlewareList extends ListObject {
             $mw->processResponse($request, $response);
         }
     }
+    
+    function processException($hander, $ex) {
+        $request = Request::getCurrent();
+        foreach ($this as $mw) {
+            $response = $mw->processException($request, $ex);
+            if ($response && $response instanceof Response)
+                return $response;
+        }
+    }
 
     function reverse() {
         return new MiddlewareList(parent::reverse());

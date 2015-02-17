@@ -86,4 +86,37 @@ class Signal {
             call_user_func_array($callable, array($object, $data));
         }
     }
+    
+    static function connectErrors() {
+        static $type_map = array(
+            E_ERROR => 'php.fatal',
+            E_RECOVERABLE_ERROR => 'php.error',
+            E_WARNING => 'php.warning',
+        );
+        static $already_setup = false;
+        
+        if ($already_setup)
+            return;
+        
+        /*set_error_handler(
+        function($errno, $errstr, $errfile, $errline, $errcontext) {
+            $info = array(
+                'type' => $errno,
+                'message' => $errstr,
+                'file' => $errfile,
+                'line' => $errline,
+                'context' => $errcontext,
+            );
+            if (isset($type_map[$errno]))
+                self::send($type_name[$errno], null, $info);
+        },
+        E_ERROR | E_RECOVERABLE_ERROR | E_WARNING);
+        */
+        
+        set_exception_handler(
+        function($ex) {
+            self::send('php.exception', $ex);
+        });
+        $already_setup = true;
+    }
 }

@@ -5,7 +5,6 @@ namespace Phlite\Dispatch;
 use Phlite\Http\Exception\Http404;
 use Phlite\Http\Exception\HttpException;
 use Phlite\Project;
-use Phlite\Request\MiddlewareList;
 use Phlite\Request\Request;
 use Phlite\Request\Response;
 use Phlite\Request\TemplateResponse;
@@ -19,6 +18,7 @@ abstract class BaseHandler implements Handler {
     
     function __construct(Project $project) {
         $this->project = $project;
+        Signal::connectErrors();
     }
 
     /**
@@ -43,16 +43,19 @@ abstract class BaseHandler implements Handler {
         catch (HttpException $ex) {
             $response = $ex->getResponse($request);
         }
+        catch (\Exception $ex) {
+            // TODO: Handle unhandled exception here
+            var_dump($ex);
+        }
 
-        $response->setHandler($this);
-        return $response->output($request);
+        if ($response) {
+            $response->setHandler($this);
+            return $response->output($request);
+        }
     }
 
     function loadMiddleware() {
-        $this->middleware = new MiddlewareList();
-        foreach ($this->project->getSettings()->get('MIDDLEWARE_CLASSES', []) as $c) {
-            $this->middleware[] = new $c();
-        }
+        $this->middleware = Project::getCurrent()->getMiddleware();
     }
 
     function getRequest() {
@@ -87,8 +90,13 @@ abstract class BaseHandler implements Handler {
             }
         }
         $this->middleware->processView($request, $view);
-        
-        return $view($request);
+
+        try {
+            return $view($request);
+        }
+        catch (\Exception $ex) {
+            return $this->middleware->reverse()->processException($request, $ex);
+        }
     }
     
     function processResponse($request, $response) {
@@ -105,10 +113,9 @@ abstract class BaseHandler implements Handler {
         return $this->project;
     }
 
-    function __onShutdown() {
-        $error = error_get_last();
-        if ($error !== null) {
-            $this->middleware->reverse()
+    function __onShutdown($obj, $info) {
+        if ($error !== null && $info['type'] == E_ERROR) {
+             $this->middleware->reverse()
                 ->processException($this, $error);
         }
     }

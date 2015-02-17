@@ -6,7 +6,7 @@ namespace Phlite\Logging;
  * An adapter for loggers which makes it easier to specify contextual
  * information in logging output
  */
-class LoggingAdapter {
+class LoggerAdapter {
     /**
      * Initialize the adapter with a logger and a dict-like object which
      * provides contextual information. This constructor signature allows
@@ -17,7 +17,7 @@ class LoggingAdapter {
      *
      * adapter = LoggerAdapter(someLogger, dict(p1=v1, p2="v2"))
      */
-    function __construct($logger, $extra) {
+    function __construct($logger, $extra=array()) {
         $this->logger = $logger;
         $this->extra = $extra;
     }
@@ -55,9 +55,9 @@ class LoggingAdapter {
         $this->logger->error($msg, $context);
     }
 
-    function exception($msg, $context=array()) {
+    function exception($msg, $exception, $context=array()) {
         list($msg, $context) = $this->process($msg, $context);
-        $this->logger->exception($msg, $context);
+        $this->logger->exception($msg, $exception, $context);
     }
 
     function log($level, $msg, $context=array()) {

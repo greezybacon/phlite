@@ -1,15 +1,15 @@
 <?php
 
-namespace Phlite\Logging\Handlers;
+namespace Phlite\Logging\Handler;
 
-use Phlite\Logging\Handler;
+use Phlite\Logging;
 
 /**
  * A handler class which writes logging records, appropriately formatted,
  * to a stream. Note that this class does not close the stream, as
  * php://stdout or php://stderr may be used.
  */
-class StreamHandler extends Handler {
+class StreamHandler extends Logging\Handler {
 
     function __construct($stream=null) {
         parent::__construct();

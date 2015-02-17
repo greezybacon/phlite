@@ -32,6 +32,7 @@ extends Io\BufferedInputStream {
     var $handler;
 	var $application;
     var $dispatcher;
+    var $response;
     
     private static $current_request;
 	
@@ -61,10 +62,7 @@ extends Io\BufferedInputStream {
      * connection.
      */
     function isHttps() {
-        return (isset($_SERVER['HTTPS'])
-                && strtolower($_SERVER['HTTPS']) == 'on')
-            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
-                && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) == 'https');
+        return $this->META->isHttps();
     }
     
     function isCli() {
@@ -79,18 +77,15 @@ extends Io\BufferedInputStream {
      * can be something else based on the server software configuration.
      */
     function getRemoteAddress() {
-        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            // Take the left-most item for X-Forwarded-For
-            return trim(array_pop(
-                explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])));
-        }
-        else {
-            return $_SERVER['REMOTE_ADDR'];
-        }
+        return $this->META->getRemoteAddress();
     }
 
     function getPath() {
         return $this->handler->getPathInfo();
+    }
+    
+    function getMethod() {
+        return strtoupper($_SERVER['REQUEST_METHOD']);
     }
     
     // Fetch the domain or host part of the Host header
@@ -165,5 +160,12 @@ extends Io\BufferedInputStream {
     }
     function getDispatcher() {
         return $this->dispatcher;
+    }
+    
+    function setResponse($response) {
+        $this->response = $response;
+    }
+    function getResponse() {
+        return $this->response;
     }
 }

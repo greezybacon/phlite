@@ -39,7 +39,7 @@ class TemplateResponse {
     function _getLoader($request) {
         $loaders = array();
         $proj = Project::getCurrent();
-        foreach ($proj->getSettings()->get('TEMPLATE_LOADERS') as $LC) {
+        foreach ($proj->getSetting('TEMPLATE_LOADERS', []) as $LC) {
             if ($loader = $LC::getLoader($request)) {
                 if (is_array($loader))
                     $loaders = array_merge($loaders, $loader);
@@ -52,7 +52,7 @@ class TemplateResponse {
 
     function _getContext($request) {
         $base = $this->context;
-        foreach ($request->getProject()->getTemplateContexts() as $TCP) {
+        foreach (Project::getCurrent()->getTemplateContexts() as $TCP) {
             $I = new $TCP;
             $base->update($I->getContext($request));
         }

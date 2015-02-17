@@ -1,8 +1,8 @@
 <?php
 
-namespace Phlite\Logging\Handlers;
+namespace Phlite\Logging\Handler;
 
-use Phlite\Logging\Handler;
+use Phlite\Logging;
 
 /**
  * This handler does nothing. It's intended to be used to avoid the
@@ -13,7 +13,7 @@ use Phlite\Logging\Handler;
  * a NullHandler and add it to the top-level logger of the library module or
  * package.
  */
-class NullHandler extends Handler {
+class NullHandler extends Logging\Handler {
     function handle($record) {
     }
 

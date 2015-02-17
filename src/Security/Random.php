@@ -21,7 +21,6 @@ class Random {
         $loops = (int) (32 / $bits_per_char);
         $output = '';
         $numbers = unpack('V*', $data);
-        array_shift($numbers);
         foreach ($numbers as $int) {
             for ($i = $loops; $i > 0; $i--) {
                 $output .= $chars[($int & $mask) % $char_count];

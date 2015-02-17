@@ -2,10 +2,13 @@
 
 namespace Phlite\Db\Backends\MySQL;
 
+use Phlite\Db\Backend;
 use Phlite\Db\Exception;
 use Phlite\Db\Compile\SqlExecutor;
+use Phlite\Db\Compile\Statement;
 
-class MysqlExecutor implements SqlExecutor {
+class MySQLiExecutor
+implements SqlExecutor {
 
     var $stmt;
     var $fields = array();
@@ -17,12 +20,13 @@ class MysqlExecutor implements SqlExecutor {
     var $map;
     
     var $backend;
+    var $conn;
 
-    function __construct(Statement $stmt, Backend $conn) {
+    function __construct(Statement $stmt, Backend $bk) {
         $this->sql = $stmt->sql;
         $this->params = $stmt->params;
         $this->map = $stmt->map;
-        $this->backend = $conn;
+        $this->backend = $bk;
     }
     
     function getMap() {
@@ -41,7 +45,7 @@ class MysqlExecutor implements SqlExecutor {
         // TODO: Detect server/client abort, pause and attempt reconnection
         
         if (!($this->stmt = $this->conn->prepare($this->sql)))
-            throw new Exception\DbError('Unable to prepare query: '.$this->conn->error
+            throw new Exception\InconsistentModel('Unable to prepare query: '.$this->conn->error
                 .': '.$this->sql);
         if (count($this->params))
             $this->_bind($this->params);
@@ -53,7 +57,7 @@ class MysqlExecutor implements SqlExecutor {
 
     function _bind($params) {
         if (count($params) != $this->stmt->param_count)
-            throw new Exception\DbError(__('Parameter count does not match query'));
+            throw new Exception\OrmException(__('Parameter count does not match query'));
 
         $types = '';
         $ps = array();
@@ -98,7 +102,7 @@ class MysqlExecutor implements SqlExecutor {
         return true;
     }
 
-    function getArray() {
+    function fetchArray() {
         $output = array();
         $variables = array();
 
@@ -116,7 +120,7 @@ class MysqlExecutor implements SqlExecutor {
         return $output;
     }
 
-    function getRow() {
+    function fetchRow() {
         $output = array();
         $variables = array();
 

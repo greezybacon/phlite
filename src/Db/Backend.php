@@ -19,7 +19,7 @@ abstract class Backend {
      */
     abstract function getCompiler($options=false);
     
-    abstract function getExecutor(Statement $stmt);
+    abstract function getExecutor(Compile\Statement $stmt);
     
     function execute(Statement $stmt) {
         $exec = $this->getExecutor($stmt);

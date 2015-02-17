@@ -2,8 +2,11 @@
 
 namespace Phlite;
 
+use Phlite\Db;
 use Phlite\Dipatch;
 use Phlite\Project\Settings;
+use Phlite\Request\MiddlewareList;
+use Phlite\Signal;
 use Phlite\Util;
 
 /**
@@ -63,10 +66,19 @@ class Project {
 		$path = implode('/', $path) . '.php';
         return (@include $path);
 	}
+    
+    function startup() {
+        foreach ($this->getSettings()->get('DATABASES') as $name=>$info) {
+            Db\Manager::addConnection($info, $name);
+        }
+    }
 
     // -------- SETTINGS ----------------------------
     function getSettings() {
         return $this->settings;
+    }
+    function getSetting($key, $default=null) {
+        return $this->getSettings()->get($key, $default);
     }
 
     function loadSettings($filename=false) {
@@ -95,17 +107,27 @@ class Project {
     /**
      * Used to retrieve a list of middleware enabled for the project.
      */
+    protected $middleware;
     function getMiddleware() {
-        return array(
-            'Phlite\Request\Middleware\SessionMiddleware',
-            'Phlite\Request\Middleware\AuthMiddleware',
-            'Phlite\Request\Middleware\CsrfMiddleware',
-        );
+        if (!isset($this->middleware)) {
+            $this->middleware = new MiddlewareList();
+            foreach ($this->getSetting('MIDDLEWARE_CLASSES', []) as $c) {
+                $this->middleware[] = new $c();
+            }
+            foreach ($this->getApplications() as $app) {
+                if ($mw = $app->getMiddleware()) {
+                    foreach ($mw as $c) {
+                        $this->middleware[] = new $c();
+                    }
+                }
+            }
+        }
+        return $this->middleware;
     }
     
     function getDispatcher() {
-        if ($this->getUrls())
-            return new Dispatch\RegexDispatcher($this->getUrls());
+        if ($urls = $this->getUrls())
+            return new Dispatch\RegexDispatcher($urls);
     }
     
     function getUrls() {
@@ -114,6 +136,15 @@ class Project {
 
     static function getCurrent() {
         return self::$current_project;
+    }
+    
+    var $root;
+    function getFilesystemRoot() {
+        if (!isset($this->root)) {
+            $RC = new \ReflectionClass($this);
+            $this->root = dirname($RC->getFilename());
+        }
+        return $this->root;
     }
     
     // Allow static calls as singleton calls
