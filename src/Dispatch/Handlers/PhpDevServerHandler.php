@@ -2,11 +2,11 @@
 
 namespace Phlite\Dispatch\Handlers;
 
-use Phlite\Dispatch\BaseHandler;
+use Phlite\Dispatch;
 use Phlite\Logging;
 use Phlite\Project;
 
-class PhpDevServerHandler extends BaseHandler {
+class PhpDevServerHandler extends Dispatch\BaseHandler {
     
     function __construct(Project $project) {
         parent::__construct($project);
@@ -28,7 +28,9 @@ class PhpDevServerHandler extends BaseHandler {
         if (isset($_SERVER['PATH_INFO']))
             return $_SERVER['PATH_INFO'];
         
-        return parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);
+        $path = parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);
+        // Strip leading slash
+        return ltrim($path, '/');
     }
 }
 

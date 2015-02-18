@@ -18,7 +18,8 @@ use Phlite\Project;
  * Such information is placed in settings modules and is connected to the
  * root project.
  */
-abstract class Application {
+abstract class Application
+implements Dispatch\Dispatcher {
 
     var $root;
     
@@ -80,6 +81,10 @@ abstract class Application {
             Project::getCurrent()->setCurrentApp($this);
         }
         return $disp->resolve($url, $args);
+    }
+    
+    function reverse($view) {
+        throw new Dispatch\Exception\Route404();
     }
 
     function getNamespace() {

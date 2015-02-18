@@ -128,10 +128,18 @@ class Project {
     function getDispatcher() {
         if ($urls = $this->getUrls())
             return new Dispatch\RegexDispatcher($urls);
+        if ($root = $this->getDispatchRoot())
+            return new Dispatch\MethodDispatcher($root);
     }
     
     function getUrls() {
-        return $this->getSettings()->get('URLS') ?: (include 'urls.php');
+        $urls = $this->getSettings()->get('URLS');
+        if ($urls)
+            return (include $urls); 
+    }
+    
+    function getDispatchRoot() {
+        return null;
     }
 
     static function getCurrent() {

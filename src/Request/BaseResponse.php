@@ -13,6 +13,7 @@ implements Response {
     }
     
     function addHeader($name, $value) {
+        // XXX: Allow duplicate headers with the same name
         $this->headers[$name] = $value;
     }
 

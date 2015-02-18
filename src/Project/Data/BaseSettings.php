@@ -43,6 +43,7 @@ $MIDDLEWARE_CLASSES = new ArrayObject([
 
 $SESSION_BACKEND = 'Phlite\Core\Session\Storage\PHPSession';
 $SESSION_COOKIE_NAME = 'PHLITE_SESSION';
+$SESSION_HTTPONLY = false;
 
 $STATIC_URL = '/static/';
 $STATICFILES_STORAGE = 'Phlite\Apps\StaticFiles\Storage\FilesStorage';

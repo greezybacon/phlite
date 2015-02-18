@@ -13,13 +13,15 @@ class CoreMiddleware extends Request\Middleware {
     }
     
     function processResponse($request, $response) {
-        // Log the request
-        $this->logger->info('', ['extra' => [
-            'verb' => $request->getMethod(),
-            'ip' => $request->META->getRemoteAddr(),
-            'path' => $request->getPath(),
-            'status' => $response ? $response->getStatusCode() : '?',
-        ]]);
+        if ($response) {
+            // Log the response
+            $this->logger->info('', ['extra' => [
+                'verb' => $request->getMethod(),
+                'ip' => $request->META->getRemoteAddr(),
+                'path' => $request->getPath(),
+                'status' => $response ? $response->getStatusCode() : '?',
+            ]]);
+        }
     }
     
     function processException($request, $ex) {

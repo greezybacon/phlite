@@ -2,7 +2,7 @@
 
 namespace Phlite\Template;
 
-use Phlite\Util\Dict;
+use Phlite\Util;
 
-class TemplateContext extends Dict {
+class TemplateContext extends Util\ArrayObject {
 }

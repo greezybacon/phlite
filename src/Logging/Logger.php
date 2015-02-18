@@ -193,7 +193,6 @@ class Logger extends Filterer {
     function _log($level, $msg, $context) {
         $exc_info = @$context['exception']; unset($context['exception']);
         $extra = @$context['extra']; unset($context['extra']);
-        
         if (!isset($exc_info)) {
             list($fn, $lno, $func) = $this->findCaller();
         }
@@ -202,7 +201,7 @@ class Logger extends Filterer {
             $lno = $exc_info['line'];
             $func = $exc_info['function'];
         }
-        elseif ($exc_info instanceof Exception) {
+        elseif ($exc_info instanceof \Exception) {
             $fn = $exc_info->getFile();
             $lno = $exc_info->getLine();
             $T = $exc_info->getTrace();
