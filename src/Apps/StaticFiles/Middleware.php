@@ -10,7 +10,8 @@ class Middleware extends Request\Middleware {
     function processRequest($request) {
         $path = new Text\String($request->getPath());
         
-        $static_dir = $request->getSettings()->get('STATIC_URL', '/static/');
+        $static_dir = ltrim(
+            $request->getSettings()->get('STATIC_URL', '/static/'), '/');
         if (!$path->startsWith($static_dir))
             return;
             
