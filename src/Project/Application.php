@@ -80,7 +80,9 @@ implements Dispatch\Dispatcher {
         if ($setCurrentProject) {
             Project::getCurrent()->setCurrentApp($this);
         }
-        return $disp->resolve($url, $args);
+        if ($disp) {
+            return $disp->resolve($url, $args);
+        }
     }
     
     function reverse($view) {

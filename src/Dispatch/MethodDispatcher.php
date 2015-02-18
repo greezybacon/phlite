@@ -71,7 +71,7 @@ implements Dispatcher {
             }
             elseif ($result instanceof Dispatcher) {
                 // Delegate to a sub dispatcher
-                return $res->resolve(implode('/', $path));
+                return $result->resolve(implode('/', $path));
             }
             elseif (is_object($result)) {
                 // Recurse forward with the remainder of the path

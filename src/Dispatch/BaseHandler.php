@@ -45,7 +45,7 @@ abstract class BaseHandler implements Handler {
         }
         catch (\Exception $ex) {
             // TODO: Handle unhandled exception here
-            var_dump($ex);
+            return $this->middleware->reverse()->processException($request, $ex);
         }
 
         if ($response) {
