@@ -4,8 +4,10 @@ namespace Phlite\Db\Model;
 
 use Phlite\Db\Exception;
 use Phlite\Db\Manager;
+use Phlite\Signal;
 
-class ModelBase {
+class ModelBase
+implements \JsonSerializable {
     static $meta = array(
         'table' => false,
         'ordering' => false,
@@ -41,16 +43,36 @@ class ModelBase {
                 return $v;
             }
             // Support relationships
-            elseif (isset($j['fkey'])
-                    && ($class = $j['fkey'][0])
-                    && class_exists($class)) {
-                return $this->__ht__[$field] = $class::lookup(
-                    array($j['fkey'][1] => $this->__ht__[$j['local']]));
+            elseif (isset($j['fkey'])) {
+                $criteria = array();
+                foreach ($j['constraint'] as $local => $foreign) {
+                    list($klas,$F) = explode('.', $foreign);
+                    if (class_exists($klas))
+                        $class = $klas;
+                    if ($local[0] == "'") {
+                        $criteria[$F] = trim($local,"'");
+                    }    
+                    elseif ($foreign[0] == "'") {
+                        // Does not affect the local model
+                        continue;
+                    }    
+                    else {
+                        $criteria[$F] = $this->ht[$local];
+                    }
+                }
+                try {
+                    $v = $this->ht[$field] = $class::lookup($criteria);
+                }
+                catch (DoesNotExist $e) {
+                    $v = null;
+                }
+                return $v;
             }
         }
         elseif (isset($this->__deferred__[$field])) {
             // Fetch deferred field
             $row = static::objects()->filter($this->getPk())
+                // FIXME: Seems like all the deferred fields should be fetched
                 ->values_flat($field)
                 ->one();
             if ($row)
@@ -63,7 +85,7 @@ class ModelBase {
         if (isset($default))
             return $default;
         // TODO: Inspect fields from database before throwing this error
-        throw new Exception\OrmError(sprintf(__('%s: %s: Field not defined'),
+        throw new Exception\OrmError(sprintf('%s: %s: Field not defined',
             get_class($this), $field));
     }
     function __get($field) {
@@ -89,6 +111,11 @@ class ModelBase {
                 return;
             }
             if ($value === null) {
+                if (in_array($j['local'], static::$meta['pk'])) {
+                    // Reverse relationship — don't null out local PK
+                    $this->ht[$field] = $value;
+                    return;
+                }
                 // Pass. Set local field to NULL in logic below
             }
             elseif ($value instanceof $j['fkey'][0]) {
@@ -113,8 +140,8 @@ class ModelBase {
             // replaced in the dirty array
             if (!array_key_exists($field, $this->__dirty__))
                 $this->__dirty__[$field] = $old;
-            $this->__ht__[$field] = $value;
         }
+        $this->__ht__[$field] = $value;
     }
     function __set($field, $value) {
         return $this->set($field, $value);
@@ -174,7 +201,8 @@ class ModelBase {
      *      arguments or key/value array as the function's first argument
      *
      * Returns:
-     * <ModelBase> instance if the lookup succeeded, and NULL otherwise.
+     * (Object<ModelBase>|null) a single instance of the sought model or 
+     * null if no such instance exists.
      *
      * Throws:
      * Db\Exception\NotUnique if the criteria does not hit a single object
@@ -185,11 +213,14 @@ class ModelBase {
             $criteria = array();
             foreach (func_get_args() as $i=>$f)
                 $criteria[static::$meta['pk'][$i]] = $f;
+            
+            // Only consult cache for PK lookup, which is assumed if the
+            // values are passed as args rather than an array
+            if ($cached = ModelInstanceManager::checkCache(get_called_class(),
+                    $criteria))
+                return $cached;
         }
-        if ($cached = ModelInstanceManager::checkCache(get_called_class(),
-                $criteria))
-            return $cached;
-        
+
         try {
             return static::objects()->filter($criteria)->one();
         }
@@ -208,7 +239,7 @@ class ModelBase {
             $this->__deleted__ = true;
             Signal::send('model.deleted', $this);
         }
-        catch (DbError $e) {
+        catch (Exception\DbError $e) {
             return false;
         }
         return true;
@@ -223,38 +254,51 @@ class ModelBase {
         $ex = Manager::save($this);
         try {
             $ex->execute();
-            if ($ex->affected_rows() != 1)
-                return false;
+            if ($ex->affected_rows() != 1) {
+                // This doesn't really signify an error. It just means that
+                // the database believes that the row did not change. For
+                // inserts though, it's a deal breaker
+                if ($this->__new__) {
+                    return false;
+                }
+                else {
+                    // No need to reload the record if requested — the
+                    // database didn't update anything
+                    $refetch = false;
+                }
+            }
         }
         catch (Exception\OrmError $e) {
             return false;
         }
 
         $pk = static::$meta['pk'];
+        $wasnew = $this->__new__;
 
         if ($this->__new__) {
-            if (count($pk) == 1)
-                // XXX: Ensure AUTO_INCREMENT is set for the field
-                $this->__ht__[$pk[0]] = $ex->insert_id();
+            // XXX: Ensure AUTO_INCREMENT is set for the field
+            if (count($pk) == 1 && !$refetch) {
+                $key = $pk[0];
+                $id = $ex->insert_id();
+                if (!isset($this->{$key}) && $id)
+                    $this->__ht__[$key] = $id;
+            }
             $this->__new__ = false;
             Signal::send('model.created', $this);
-            $this->__onload();
         }
         else {
             $data = array('dirty' => $this->__dirty__);
             Signal::send('model.updated', $this, $data);
         }
         # Refetch row from database
-        # XXX: Too much voodoo
         if ($refetch) {
-            // Uncache so that the lookup will not be short-cirtuited to
-            // return this object — i.e. actually fetch from database
-            ModelInstanceManager::uncache($this);
-            $self = static::lookup($this->get('pk'));
-            $this->__ht__ = $self->__ht__;
+            $this->__ht__ = static::objects()->filter($this->getPk())->values()->one();
+        }
+        if ($wasnew) {
+            $this->__onload();
         }
         $this->__dirty__ = array();
-        return $this->get($pk[0]);
+        return true;
     }
 
     static function create($ht=false) {
@@ -270,8 +314,28 @@ class ModelBase {
 
     private function getPk() {
         $pk = array();
-        foreach ($this::$meta['pk'] as $f)
+        foreach (static::$meta['pk'] as $f)
             $pk[$f] = $this->__ht__[$f];
         return $pk;
+    }
+    
+    // ---- JsonSerializable interface ------------------------
+    function jsonSerialize() {
+        $fields = $this->ht;
+        foreach (static::$meta['joins'] as $k=>$j) {
+            // For join relationships, drop local ID from the fields 
+            // list. Instead, list the ID as the member of the join unless
+            // it is an InstrumentedList or ModelBase instance, in which case
+            // use it as is
+            $L = @$fields[$k];
+            if ($L instanceof InstrumentedList)
+                // Don't drop the local ID field from the list
+                continue;
+             if (!$L instanceof ModelBase)
+                 // Relationship to a deferred model. Use the local ID instead
+                 $fields[$k] = $fields[$k['local']];
+            unset($fields[$j['local']]);
+        }
+        return $fields;
     }
 }

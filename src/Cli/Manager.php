@@ -44,7 +44,7 @@ extends Module {
             foreach ($A->getCliModules() as $mod) {
                 // TODO: Error if there is already a mod under this name
                 $section = $discovered->setDefault($A->getName(), new Util\ArrayObject());
-                $section[$mod->getName()] = $mod;
+                $section[$A->getLabel().':'.$mod->getName()] = $mod;
             }
         }
         return $discovered;

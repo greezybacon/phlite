@@ -2,7 +2,9 @@
 
 namespace Phlite\Db;
 
-class InstrumentedList extends ModelInstanceManager {
+class InstrumentedList
+extends ModelInstanceManager
+implements \JsonSerializable {
     var $key;
     var $id;
     var $model;
@@ -53,7 +55,7 @@ class InstrumentedList extends ModelInstanceManager {
         return $this->queryset->update($what);
     }
 
-    // Fetch a new QuerySet
+    // Fetch a new QuerySet — ensure local queryset object is not modified
     function objects() {
         return clone $this->queryset;
     }
@@ -71,5 +73,10 @@ class InstrumentedList extends ModelInstanceManager {
     // QuerySet overriedes
     function __call($func, $args) {
         return call_user_func_array(array($this->objects(), $func), $args);
+    }
+    
+    // ---- JsonSerializable interface ------------------------
+    function jsonSerialize() {
+        return $this->queryset->asArray();
     }
 }

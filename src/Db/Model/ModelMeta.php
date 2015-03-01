@@ -20,6 +20,7 @@ class ModelMeta implements \ArrayAccess {
         'form' => false,
         'defer' => array(),
         'select_related' => array(),
+        'view' => false,
     );
 
     var $base;
@@ -50,32 +51,42 @@ class ModelMeta implements \ArrayAccess {
         if (!isset($meta['joins']))
             $meta['joins'] = array();
         foreach ($meta['joins'] as $field => &$j) {
-            if (isset($j['reverse'])) {
-                list($fmodel, $key) = explode('.', $j['reverse']);
-                $info = $fmodel::$meta['joins'][$key];
-                $constraint = array();
-                if (!is_array($info['constraint']))
-                    throw new Exception\ModelConfigurationError(sprintf(__(
-                        // `reverse` here is the reverse of an ORM relationship
-                        '%s: Reverse does not specify any constraints'),
-                        $j['reverse']));
-                foreach ($info['constraint'] as $foreign => $local) {
-                    list(,$field) = explode('.', $local);
-                    $constraint[$field] = "$fmodel.$foreign";
-                }
-                $j['constraint'] = $constraint;
-                if (!isset($j['list']))
-                    $j['list'] = true;
-                $j['null'] = $info['null'] ?: false;
-            }
-            // XXX: Make this better (ie. composite keys)
-            $keys = array_keys($j['constraint']);
-            $foreign = $j['constraint'][$keys[0]];
-            $j['fkey'] = explode('.', $foreign);
-            $j['local'] = $keys[0];
+            $j = $this->processJoin($j);
         }
         unset($j);
         $this->base = $meta;
+    }
+    
+    function processJoin(&$j) {
+        if (isset($j['reverse'])) {
+            list($fmodel, $key) = explode('.', $j['reverse']);
+            $info = $fmodel::$meta['joins'][$key];
+            $constraint = array();
+            if (!is_array($info['constraint']))
+                throw new OrmConfigurationException(sprintf(__(
+                    // `reverse` here is the reverse of an ORM relationship
+                    '%s: Reverse does not specify any constraints'),
+                    $j['reverse']));
+            foreach ($info['constraint'] as $foreign => $local) {
+                list(,$field) = explode('.', $local);
+                $constraint[$field ?: $local] = "$fmodel.$foreign";
+            }
+            $j['constraint'] = $constraint;
+            if (!isset($j['list']))
+                $j['list'] = true;
+            if (!isset($j['null']))
+                // By default, reverse releationships can be empty lists
+                $j['null'] = true;
+        }
+        // XXX: Make this better (ie. composite keys)
+        foreach ($j['constraint'] as $local => $foreign) {
+            list($class, $field) = explode('.', $foreign);
+            if ($local[0] == "'" || $field[0] == "'" || !class_exists($class))
+                continue;
+            $j['fkey'] = array($class, $field);
+            $j['local'] = $local;
+        }
+        return $j;
     }
 
     function offsetGet($field) {
@@ -98,15 +109,6 @@ class ModelMeta implements \ArrayAccess {
         case 'fields':
             $this->base['fields'] = self::inspectFields();
             break;
-        case 'newInstance':
-            $class_repr = sprintf(
-                'O:%d:"%s":0:{}',
-                strlen($this->model), $this->model
-            );
-            $this->base['newInstance'] = function() use ($class_repr) {
-                return unserialize($class_repr);
-            };
-            break;
         default:
             throw new \Exception($what . ': No such meta-data');
         }
@@ -114,5 +116,29 @@ class ModelMeta implements \ArrayAccess {
 
     function inspectFields() {
         return DbEngine::getCompiler()->inspectTable($this['table']);
+    }
+    
+    /**
+     * Create a new instance of the model, optionally hydrating it with the
+     * given hash table. The constructor is not called, which leaves the 
+     * default constructor free to assume new object status.
+     */
+    function newInstance($props=false) {
+        static $sers = array();
+        
+        if (!isset($sers[$this->model])) {
+            $sers[$this->model] = sprintf(
+                'O:%d:"%s":0:{}',
+                strlen($this->model), $this->model
+            );
+        }
+        // TODO: Compare timing between unserialize() and
+        //       ReflectionClass::newInstanceWithoutConstructor
+        $instance = unserialize($sers[$this->model]);
+        // Hydrate if props were included
+        if (is_array($props)) {
+            $instance->__ht__ = $props;
+        }
+        return $instance;
     }
 }

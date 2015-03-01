@@ -25,7 +25,26 @@ class Statement {
         return $this->map;
     }
     
+    function hasParameters() {
+        return count($this->params);
+    }
+    function getParameters() {
+        return $this->params;
+    }
+    
+    function toString($escape_cb=false) {
+        if (!$escape_cb)
+            $escape_cb = function($i) { return $i; };
+        
+        $self = $this;
+        $x = 0;
+        return preg_replace_callback('/\?/', function($m) use ($self, &$x, $escape_cb) {
+            $p = $self->params[$x++];
+            // FIXME:
+            return $escape_cb($p);
+        }, $this->sql);
+    }
     function __toString() {
-        return $this->sql;
+        return $this->toString();
     }
 }

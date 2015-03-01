@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Db;
+namespace Phlite\Db\Compile;
 
 class CompiledExpression /* extends SplString */ {
     const TYPE_WHERE =   0x0001;

@@ -11,6 +11,10 @@ class Aggregate extends SqlFunction {
 
     function __construct($func, $expr, $distinct=false, $constraint=false) {
         $this->func = $func;
+        if (is_string($expr))
+            $expr = new Field($expr);
+        elseif ($expr instanceof Expression)
+            throw new \InvalidArgumentException('$expr must be a string or Db\Util\Expression');
         $this->expr = $expr;
         $this->distinct = $distinct;
         if ($constraint instanceof Q)
@@ -26,9 +30,34 @@ class Aggregate extends SqlFunction {
     }
 
     function toSql($compiler, $model=false, $alias=false) {
-        $options = array('constraint'=>$this->constraint);
-        list($field) = $compiler->getField($this->expr, $model, $options);
-        return sprintf('%s(%s)%s', $this->func, $field,
+        $options = array('constraint' => $this->constraint, 'model' => true);
+
+        // For DISTINCT, require a field specification — not a relationship
+        // specification.
+        list($field, $rmodel) = $compiler->getField($this->expr, $model, $options);
+        if ($this->distinct) {
+            $pk = false;
+            foreach ($rmodel::$meta['pk'] as $f) {
+                $pk |= false !== strpos($field, $f);
+            }
+            if (!$pk) {
+                // Try and use the foriegn primary key
+                if (count($rmodel::$meta['pk']) == 1) {
+                    list($field) = $compiler->getField(
+                        $this->expr . '__' . $rmodel::$meta['pk'][0],
+                        $model, $options);
+                }
+                else {
+                    throw new OrmException(
+                        sprintf('%s :: %s', $rmodel, $field) .
+                        ': DISTINCT aggregate expressions require specification of a single primary key field of the remote model'
+                    );
+                }
+            }
+        }
+
+        return sprintf('%s(%s%s)%s', $this->func,
+            $this->distinct ? 'DISTINCT ' : '', $field,
             $alias && $this->alias ? ' AS '.$compiler->quote($this->alias) : '');
     }
 

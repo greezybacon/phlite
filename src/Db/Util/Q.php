@@ -2,7 +2,8 @@
 
 namespace Phlite\Db\Util;
 
-class Q {
+class Q
+implements \Serializable {
     const NEGATED = 0x0001;
     const ANY =     0x0002;
 
@@ -32,11 +33,41 @@ class Q {
         return $this;
     }
 
+    function union() {
+        $this->ored = true;
+    }
+
+    function add($constraints) {
+        if (is_array($constraints))
+            $this->constraints = array_merge($this->constraints, $constraints);
+        elseif ($constraints instanceof static)
+            $this->constraints[] = $constraints;
+        else
+            throw new \InvalidArgumentException('Expected an instance of Q or an array thereof');
+        return $this;
+    }
+
     static function not(array $constraints) {
         return new static($constraints, self::NEGATED);
     }
 
     static function any(array $constraints) {
         return new static($constraints, self::ANY);
+    }
+
+    function serialize() {
+        return serialize(array(
+            'f' =>
+                ($this->negated ? self::NEGATED : 0)
+              | ($this->ored ? self::ANY : 0),
+            'c' => $this->constraints
+        ));
+    }
+
+    function unserialize($data) {
+        $data = unserialize($data);
+        $this->constraints = $data['c'];
+        $this->ored = $data['f'] & self::ANY;
+        $this->negated = $data['f'] & self::NEGATED;
     }
 }

@@ -2,12 +2,12 @@
 
 namespace Phlite\Db\Util;
 
-class SqlFunction {
-    var $alias;
-
-    function SqlFunction($name) {
+class Func
+extends Expression {
+    
+    function __construct($name) {
         $this->func = $name;
-        $this->args = array_slice(func_get_args(), 1);
+        parent::__construct(array_slice(func_get_args(), 1));
     }
 
     function toSql($compiler, $model=false, $alias=false) {
@@ -17,6 +17,9 @@ class SqlFunction {
 
     function setAlias($alias) {
         $this->alias = $alias;
+    }
+    function getAlias() {
+        return $this->alias;
     }
 
     static function __callStatic($func, $args) {

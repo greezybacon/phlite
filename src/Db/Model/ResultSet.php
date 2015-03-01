@@ -4,7 +4,8 @@ namespace Phlite\Db\Model;
 
 use Phlite\Db\Manager;
 
-abstract class ResultSet implements \Iterator, \ArrayAccess {
+abstract class ResultSet
+implements \Iterator, \ArrayAccess, \Countable {
     var $resource;
     var $stmt;
     var $position = 0;
@@ -61,5 +62,10 @@ abstract class ResultSet implements \Iterator, \ArrayAccess {
     }
     function offsetSet($a, $b) {
         throw new \Exception(sprintf(__('%s is read-only'), get_class($this)));
+    }
+    
+    // Countable interface
+    function count() {
+        return count($this->asArray());
     }
 }

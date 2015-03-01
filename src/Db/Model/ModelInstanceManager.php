@@ -37,25 +37,66 @@ class ModelInstanceManager extends ResultSet {
     }
 
     static function checkCache($modelClass, $fields) {
-        $key = $modelClass::$meta->model;
+        $key = $modelClass;
         foreach ($modelClass::$meta['pk'] as $f)
             $key .= '.'.$fields[$f];
         return @self::$objectCache[$key];
     }
-
-    function getOrBuild($modelClass, $fields) {
-        // Check the cache for the model instance first
-        if ($m = self::checkCache($modelClass, $fields)) {
-            // TODO: If the model has deferred fields which are in $fields,
-            // those can be resolved here
-            return $m;
+    
+    /**  
+     * getOrBuild
+     *
+     * Builds a new model from the received fields or returns the model
+     * already stashed in the model cache. Caching helps to ensure that
+     * multiple lookups for the same model identified by primary key will
+     * fetch the exact same model. Therefore, changes made to the model
+     * anywhere in the project will be reflected everywhere.
+     *
+     * For annotated models (models build from querysets with annotations),
+     * the built or cached model is wrapped in an AnnotatedModel instance.
+     * The annotated fields are in the AnnotatedModel instance and the
+     * database-backed fields are managed by the Model instance.
+     */
+    function getOrBuild($modelClass, $fields, $cache=true) {
+        // Check for NULL primary key, used with related model fetching. If
+        // the PK is NULL, then consider the object to also be NULL
+        foreach ($modelClass::$meta['pk'] as $pkf) {
+            if (!isset($fields[$pkf])) {
+                return null;
+            }    
+        }    
+        $annotations = $this->queryset->annotations;
+        $extras = array();
+        // For annotations, drop them from the $fields list and add them to
+        // an $extras list. The fields passed to the root model should only
+        // be the root model's fields. The annotated fields will be wrapped
+        // using an AnnotatedModel instance.
+        if ($annotations && $modelClass == $this->model) {
+            foreach ($annotations as $name=>$A) {
+                if (isset($fields[$name])) {
+                    $extras[$name] = $fields[$name];
+                    unset($fields[$name]);
+                }
+            }
         }
-        // Construct and cache the object
-        $this->cache($m = new $modelClass($fields));
-        $m->__deferred__ = $this->queryset->defer;
-        $m->__onload();
+        // Check the cache for the model instance first
+        if (!($m = self::checkCache($modelClass, $fields))) {
+            // Construct and cache the object
+            $m = new $modelClass($fields);
+            // XXX: defer may refer to fields not in this model
+            $m->__deferred__ = $this->queryset->defer;
+            $m->__onload();
+            if ($cache)
+                $this->cache($m);
+        }
+        // Wrap annotations in an AnnotatedModel
+        if ($extras) {
+            $m = new AnnotatedModel($m, $extras);
+        }
+        // TODO: If the model has deferred fields which are in $fields,
+        // those can be resolved here
         return $m;
-    }
+    }  
 
     /**
      * buildModel
@@ -88,7 +129,7 @@ class ModelInstanceManager extends ResultSet {
                     // Build the root model
                     $model = $this->getOrBuild($this->model, $record);
                 }
-                else {
+                elseif ($model) {
                     $i = 0;
                     // Traverse the declared path and link the related model
                     $tail = array_pop($path);

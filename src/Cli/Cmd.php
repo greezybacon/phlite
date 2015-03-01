@@ -124,21 +124,21 @@ class Cmd {
             return $this->emptyline();
         }
         if ($cmd === null) {
-            return $this->unknown($line);
+            return $this->def($line);
         }
         $this->lastcmd = $line;
         if ($line == 'EOF')
             $this->lastcmd = '';
         try {
             if ($cmd == '') {
-                return $this->unknown($line);
+                return $this->def($line);
             }
             else {
                 if (method_exists($this, 'do_' . $cmd)) {
                     return call_user_func(array($this, 'do_' . $cmd), $arg);
                 }
                 else {
-                    return $this->unknown($line);
+                    return $this->def($line);
                 }
             }
         }
@@ -153,11 +153,11 @@ class Cmd {
         }
     }
 
-    function unknown($line) {
+    function def($line) {
         fwrite($this->stdout, sprintf("*** Unknown syntax: %s\n", $line));
     }
 
-    function completedefault() {
+    function completedefault($text, $line, $start, $end) {
         return array();
     }
 

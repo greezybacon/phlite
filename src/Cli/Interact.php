@@ -21,15 +21,22 @@ EOT
         parent::__construct($completekey, $stdin, $stdout);
     }
 
-    function unknown($___line) {
+    function def($___line) {
         // Refresh previous scope
-        extract($this->scode, EXTR_OVERWRITE);
+        if ($this->scope)
+            extract($this->scope, EXTR_OVERWRITE);
+
+        // Try to avoid fatal errors
+        if ($___e = $this->checkLine($___line)) {
+             fwrite(STDERR, "oops: ".$___e."\n");
+             return;
+        }
 
         // If the line is an expression, capture the result
         if ($this->isExpr)
             $___line = 'return ' . $___line;
         $___line = "try{{$___line}}catch(Exception \$___e){}";
-        // Eval the current line
+        // Eval the current line. — Try not to crash!!
         try {
             $___result = eval($___line);
         } 
@@ -131,6 +138,29 @@ EOT
         }
         return $braces + $parens + $heredoc + ($quotes % 2) == 0;
     }
+    
+    function checkLine($line) {
+        $tokens = token_get_all('<?php ' . $line);
+        $next = $last = null;
+        while (count($tokens)) {
+            $next = $last;
+            $last = array_pop($tokens);
+            switch ($last[0]) {
+            case T_OBJECT_OPERATOR:
+                $obj = array_pop($tokens);
+                if ($obj[0] != T_VARIABLE)
+                    break;
+                $var = substr($obj[1], 1);
+                if (!isset($this->scope[$var]))
+                    return "$var: Object access to undefined variable";
+                $o = $this->scope[$var];
+                if (!is_object($o))
+                    return "$var: Is not an object";
+                
+                // TODO: If method call, ensure the method exists
+            }
+        }
+    }
 
     function completedefault($text, $line, $start, $end) {
         // See what comes before $text
@@ -150,7 +180,7 @@ EOT
                 $var = substr($obj[1], 1);
                 if (!isset($this->scope[$var]))
                     break;
-                $o = &$this->scope[$var];
+                $o = $this->scope[$var];
                 return $this->completeobject($o, $text, $line, $start,
                     $end);
             case T_PAAMAYIM_NEKUDOTAYIM:

@@ -5,6 +5,7 @@ namespace Phlite\Db\Compile;
 use Phlite\Db\Backend;
 use Phlite\Db\Exception;
 use Phlite\Db\Model;
+use Phlite\Db\Util;
 
 abstract class SqlCompiler {
 
@@ -115,7 +116,8 @@ abstract class SqlCompiler {
 
         // Call pushJoin for each segment in the join path. A new JOIN
         // fragment will need to be emitted and/or cached
-        $push = function($p, $path, $extra=false) use (&$model) {
+        $self = $this;
+        $push = function($p, $path, $extra=false) use (&$model, $self) {
             $model::_inspect();
             if (!($info = $model::$meta['joins'][$p])) {
                 throw new Exception\OrmError(sprintf(
@@ -125,7 +127,7 @@ abstract class SqlCompiler {
             $crumb = implode('__', $path);
             $path[] = $p;
             $tip = implode('__', $path);
-            $alias = $this->pushJoin($crumb, $tip, $model, $info, $extra);
+            $alias = $self->pushJoin($crumb, $tip, $model, $info, $extra);
             // Roll to foreign model
             foreach ($info['constraint'] as $local => $foreign) {
                 list($model, $f) = explode('.', $foreign);
@@ -212,7 +214,7 @@ abstract class SqlCompiler {
      *
      * Parameters:
      * $Q - (Util\Q) constraint represented in a Q instance
-     * $model - (ModelBase) root model for all the field references in
+     * $model - (string) root model class for all the field references in
      *      the Util\Q instance
      * $slot - (int) slot for inputs to be placed. Useful to differenciate
      *      inputs placed in the joins and where clauses for SQL backends
@@ -224,7 +226,7 @@ abstract class SqlCompiler {
      * of the CompiledExpression will allow the compiler to place the
      * constraint properly in the WHERE or HAVING clause appropriately.
      */
-    function compileQ(Util\Q $Q, ModelBase $model, $slot=false) {
+    function compileQ(Util\Q $Q, $model, $slot=false) {
         $filter = array();
         $type = CompiledExpression::TYPE_WHERE;
         foreach ($Q->constraints as $field=>$value) {
@@ -243,7 +245,7 @@ abstract class SqlCompiler {
                     $f = $field . '__' . $f;
                     $criteria[$f] = $v;
                 }
-                $filter[] = $this->compileQ(new Q($criteria), $model, $slot);
+                $filter[] = $this->compileQ(new Util\Q($criteria), $model, $slot);
             }
             // Handle simple field = <value> constraints
             else {
@@ -294,23 +296,28 @@ abstract class SqlCompiler {
      *      inputs are inserted ahead of the SLOT_WHERE inputs as the joins
      *      come logically before the where claused in the finalized
      *      statement.
+     * $model - (Class : ModelBase) model used to derive expressions from,
+     *      in the event that $what is an Expression.
      *
      * Returns:
      * (string) token to be placed into the compiled SQL statement. For
      * MySQL, this is always the string '?'. Depends on the actual backend
      * implementation.
      */
-    function input($what, $slot=false) {
+    function input($what, $slot=false, $model=false) {
         if ($what instanceof Model\QuerySet) {
             $q = $what->getQuery(array('nosort'=>true));
-            $this->params = array_merge($q->params);
-            return (string)$q;
+            $this->params = array_merge($this->params, $q->params);
+            return $q->sql;
         }
-        elseif ($what instanceof Util\SqlFunction) {
-            return $what->toSql($this);
+        elseif ($what instanceof Util\Expression) {
+            return $what->toSql($this, $model);
+        }
+        elseif (!isset($what)) {
+            return 'NULL';
         }
         else {
-            $this->addParam($what, $slot);
+            return $this->addParam($what, $slot);
         }
     }
     
@@ -332,11 +339,23 @@ abstract class SqlCompiler {
         return $this->params;
     }
 
-    function getJoins() {
+    function getJoins($queryset) {
         $sql = '';
         foreach ($this->joins as $j)
             if (isset($j['sql']))
                 $sql .= $j['sql'];
+        // Add extra items from QuerySet
+        if (isset($queryset->extra['tables'])) {
+            foreach ($queryset->extra['tables'] as $S) {
+                $join = ' JOIN ';
+                // Left joins require an ON () clause
+                if ($lastparen = strrpos($S, '(')) {
+                    if (preg_match('/\bon\b/i', substr($S, $lastparen - 4, 4)))
+                        $join = ' LEFT' . $join;
+                }
+                $sql .= $join.$S;
+            }
+        }
         return $sql;
     }
     
@@ -371,5 +390,8 @@ abstract class SqlCompiler {
     abstract function compileBulkDelete(Model\QuerySet $queryset);
     abstract function compileBulkUpdate(Model\QuerySet $queryset, array $what);
     abstract function inspectTable($table);
+    
+    // XXX: Move this to another interface to include complete support for
+    //      model migrations
     abstract function compileCreate($modelClass);
 }
