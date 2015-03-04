@@ -88,7 +88,54 @@ abstract class BaseView {
 		$response = new TemplateResponse($template);
 	}
     
-    static function bind(array $args) {
+    /**
+     * bind
+     *
+     * Create a bound view from this view. This is a convenience which can 
+     * be used simply in dispatching, for instance
+     *
+     * return Views\Util\Redirect::bind('/location');
+     *
+     * Which will create and return a BoundView instance which will call
+     * the Redirect view later with the received arguments.
+     */
+    static function bind($args=null) {
+        $args = ($args !== null && is_array($args) ? $args : func_get_args());
         return new BoundView(new static(), $args);
+    }
+    
+    protected function _processTraits($refl) {
+        // Assume that the parent class chain will eventually get here
+        // and add context from traits
+        foreach ($refl->getTraits() as $trait) {
+            $name = "getContext__".$trait->getShortName();
+            if ($trait->hasMethod($name)) {
+                $context->update($this->{$name}());
+            }
+            // TODO: Consider traits of traits
+            $traithis->_processTraits($trait);
+        }
+    }
+    
+    /**
+     * getContext
+     *
+     * Compile an array of template context to be used when rendering this view
+     * in a template.
+     * 
+     * XXX: Does this method really belong to _all_ views?
+     */
+    function getContext($base=array()) {
+        $context = new Template\TemplateContext($base);
+        
+        $class = new \ReflectionClass($this);
+        if ($class->getParentClass()) {
+            // Use the parent ::getContext() method exclusively
+            $context->update(parent::getContext());
+        }
+        else {
+            $this->_processTraits($class);
+        }
+        return $context;
     }
 }

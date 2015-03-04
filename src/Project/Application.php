@@ -5,8 +5,7 @@ namespace Phlite\Project;
 use Phlite\Dispatch;
 use Phlite\Dispatch\Route;
 use Phlite\Project;
-
-
+use Phlite\Text;
 
 /**
  * Class: Application
@@ -42,7 +41,10 @@ implements Dispatch\Dispatcher {
      *
      * Fetches a list of URLs to be connected with a dispatcher. The URLs
      * will be used to connect the HTTP request with a view inside this
-     * application
+     * application. By default the contents of the file defined in 
+     * '$urls_path' will be included and the returned value from the include
+     * will be captured and cached to become the return value. For custom
+     * URLs, this method can be overridden in a subclass.
      *
      * Returns:
      * (array<Phlite\Dispatcher\Route>) a list of objects used by the
@@ -59,6 +61,12 @@ implements Dispatch\Dispatcher {
             return (include $this->root . '/' . $this->urls_path);
     }
     
+    /** 
+     * getDispatcherRoot
+     *
+     * Fetch an object whose method can be used to dispatch the URL path of
+     * the request to a View.
+     */
     function getDispatchRoot() {
         return false;
     }
@@ -73,20 +81,6 @@ implements Dispatch\Dispatcher {
             return new Dispatch\RegexDispatcher($this->getUrls());
         elseif ($root = $this->getDispatchRoot())
             return new Dispatch\MethodDispatcher($root);
-    }
-    
-    function resolve($url, $args=null, $setCurrentProject=true) {
-        $disp = $this->getDispatcher();
-        if ($setCurrentProject) {
-            Project::getCurrent()->setCurrentApp($this);
-        }
-        if ($disp) {
-            return $disp->resolve($url, $args);
-        }
-    }
-    
-    function reverse($view) {
-        throw new Dispatch\Exception\Route404();
     }
 
     function getNamespace() {
@@ -158,7 +152,8 @@ implements Dispatch\Dispatcher {
     function getLabel() {
         if (!isset($this->label)) {
             $namespace = explode('\\', $this->getFullNamespace());
-            $this->label = array_pop($namespace);
+            $U = new Text\Unicode(array_pop($namespace));
+            $this->label = $U->lower();
         }
         return $this->label;
     }
@@ -171,7 +166,25 @@ implements Dispatch\Dispatcher {
         return $this->root . '/I18n';
     }
     
+    
+    // ---- Dispatcher interface ------------------------------
+    function resolve($url, $args=null, $setCurrentProject=true) {
+        $disp = $this->getDispatcher();
+        if ($setCurrentProject) {
+            Project::getCurrent()->setCurrentApp($this);
+        }
+        if ($disp) {
+            return $disp->resolve($url, $args);
+        }
+    }
+    
+    function reverse($view) {
+        throw new Dispatch\Exception\Route404();
+    }
+    
     static function asRoute($url) {
+        // XXX: This can be retired as the dispatch system should
+        // transparently delegeate to objects which implement Dispatcher
         return new Route($url, get_called_class(), null, Route::APPLICATION);
     }
     
@@ -199,6 +212,12 @@ implements Dispatch\Dispatcher {
     }
     
     // ------ CLI interfaces -----------------
+    /**
+     * getCliModules
+     *
+     * Fetch a list of instanciated CLI modules which are included with this
+     * application.
+     */
     function getCliModules() {
         $app_mods = array();
         
