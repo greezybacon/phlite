@@ -63,7 +63,7 @@ class Project {
 
 	function _autoload($class_name, $exts) {
         foreach ($this->applications as $namespace=>$app) {
-            if (strpos($class_name, $namespace) !== 0) {
+            if (strpos($class_name, $namespace) !== 0)
                 continue;
 
             $file = str_replace(["$namespace\\", '\\'], ['', DIRECTORY_SEPARATOR],
