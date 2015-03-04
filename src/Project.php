@@ -61,10 +61,19 @@ class Project {
         $this->current_app = $app;
     }
 
-	function _autoload($class) {
-		$path = explode('\\', $class);
-		$path = implode('/', $path) . '.php';
-        return (@include $path);
+	function _autoload($class_name, $exts) {
+        foreach ($this->applications as $namespace=>$app) {
+            if (strpos($class_name, $namespace) !== 0) {
+                continue;
+
+            $file = str_replace(["$namespace\\", '\\'], ['', DIRECTORY_SEPARATOR],
+                 $class_name);
+            $base = $this->getFilesystemRoot() . DIRECTORY_SEPARATOR . $file;
+            foreach ($exts as $X) {
+                if (is_file($file.$X))
+                    require_once $file.$X;
+            }
+        }
 	}
     
     function startup() {
