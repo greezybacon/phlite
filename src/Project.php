@@ -60,21 +60,27 @@ class Project {
     function setCurrentApp(Project\Application $app) {
         $this->current_app = $app;
     }
+    
+    function getNamespace() {
+        $class = get_class($this);
+        $namespace = explode('\\', $class);
+        array_pop($namespace);
+        return implode('\\', $namespace);
+    }
 
-	function _autoload($class_name, $exts) {
-        foreach ($this->applications as $namespace=>$app) {
-            if (strpos($class_name, $namespace) !== 0)
-                continue;
+    function _autoload($class_name, $exts=['.php']) {
+        $namespace = $this->getNamespace();
+        if (strpos($class_name, $namespace) !== 0)
+            continue;
 
-            $file = str_replace(["$namespace\\", '\\'], ['', DIRECTORY_SEPARATOR],
-                 $class_name);
-            $base = $this->getFilesystemRoot() . DIRECTORY_SEPARATOR . $file;
-            foreach ($exts as $X) {
-                if (is_file($file.$X))
-                    require_once $file.$X;
-            }
+        $file = str_replace(["$namespace\\", '\\'], ['', DIRECTORY_SEPARATOR],
+             $class_name);
+        $base = $this->getFilesystemRoot() . DIRECTORY_SEPARATOR . $file;
+        foreach ($exts as $X) {
+            if (is_file($file.$X))
+                require_once $file.$X;
         }
-	}
+    }
     
     function startup() {
         foreach ($this->getSettings()->get('DATABASES') as $name=>$info) {
