@@ -70,7 +70,7 @@ implements SqlExecutor {
     function _bind(Statement $stmt, $res) {
         $params = $stmt->getParameters();
         if (count($params) != $res->param_count)
-            throw new Exception\OrmException('Parameter count does not match query');
+            throw new Exception\OrmError('Parameter count does not match query');
 
         $types = '';
         $ps = array();

@@ -94,6 +94,8 @@ class ModelMeta implements \ArrayAccess {
                 continue;
             $j['fkey'] = array($class, $field);
             $j['local'] = $local;
+            if (!isset($j['list']))
+                $j['list'] = false;
         }
         return $j;
     }

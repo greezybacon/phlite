@@ -361,9 +361,10 @@ class Compiler extends SqlCompiler {
         }
         $joins = $this->getJoins($queryset);
         $group_by = ($group_by) ? ' GROUP BY '.implode(',', $group_by) : '';
+        $limit = $this->getLimit($queryset);
         
         $sql = 'SELECT '.implode(', ', $fields).' FROM '
-            .$table.$joins.$where.$group_by.$having.$sort;
+            .$table.$joins.$where.$group_by.$having.$sort.$limit;
 
         switch ($queryset->lock) {
         case QuerySet::LOCK_EXCLUSIVE:
