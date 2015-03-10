@@ -3,7 +3,7 @@
 namespace Phlite\Db\Model;
 
 use Phlite\Db\Exception;
-use Phlite\Db\DbEngine;
+use Phlite\Db\Manager;
 
 /**
  * Meta information about a model including edges (relationships), table
@@ -129,7 +129,9 @@ class ModelMeta implements \ArrayAccess {
     }
 
     function inspectFields() {
-        return DbEngine::getCompiler()->inspectTable($this['table']);
+        $connection = Manager::getConnection($this);
+        $compiler = $connection->getCompiler();
+        return $compiler->inspectTable($this['table']);
     }
     
     /**
