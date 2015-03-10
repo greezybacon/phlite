@@ -29,11 +29,6 @@ implements SqlExecutor {
         return $this->stmt->map;
     }
 
-    function _prepare() {
-        $this->execute();
-        $this->_setup_output();
-    }
-
     function execute() {
         if (!isset($this->conn))
             $this->conn = $this->backend->getConnection();
@@ -52,6 +47,7 @@ implements SqlExecutor {
         if (!$this->res->execute() || !$this->res->store_result()) {
             throw new Exception\DbError('Unable to execute query: ' . $this->res->error);
         }
+        $this->_setup_output();
         return true;
     }
     
@@ -85,7 +81,7 @@ implements SqlExecutor {
                 $types .= 'd';
             elseif (is_string($p))
                 $types .= 's';
-            elseif ($p instanceof DateTime) {
+            elseif ($p instanceof \DateTime) {
                 // TODO: Detect database timezone and convert accordingly
                 // for a non-naive DateTime instance
                 $types .= 's';
@@ -110,7 +106,7 @@ implements SqlExecutor {
     // Iterator interface
     function rewind() {
         if (!isset($this->res))
-            $this->_prepare();
+            $this->execute();
         $this->res->data_seek(0);
     }
 
@@ -130,7 +126,7 @@ implements SqlExecutor {
         $variables = array();
 
         if (!isset($this->res))
-            $this->_prepare();
+            $this->execute();
 
         foreach ($this->fields as $f)
             $variables[] = &$output[$f->name]; // pass by reference
@@ -148,7 +144,7 @@ implements SqlExecutor {
         $variables = array();
 
         if (!isset($this->res))
-            $this->_prepare();
+            $this->execute();
 
         foreach ($this->fields as $f)
             $variables[] = &$output[]; // pass by reference

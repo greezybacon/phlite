@@ -71,7 +71,7 @@ class Project {
     function _autoload($class_name, $exts=['.php']) {
         $namespace = $this->getNamespace();
         if (strpos($class_name, $namespace) !== 0)
-            continue;
+            return;
 
         $file = str_replace(["$namespace\\", '\\'], ['', DIRECTORY_SEPARATOR],
              $class_name);

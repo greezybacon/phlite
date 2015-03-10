@@ -120,7 +120,7 @@ class Compiler extends SqlCompiler {
             $constraints[] = $this->compileQ($extra, $model, self::SLOT_JOINS);
         }
         // Support inline views
-        $table = ($rmodel::$meta['view'])
+        $table = (@$rmodel::$meta['view'])
             ? $rmodel::getQuery($this)
             : $this->quote($rmodel::$meta['table']);
         return $join.$table
@@ -176,17 +176,31 @@ class Compiler extends SqlCompiler {
             $having = ' HAVING '.implode(' AND ', $having);
         return array($where ?: '', $having ?: '');
     }
+    
+    protected function getLimit($queryset) {
+        $sql = '';
+        if ($queryset->limit)
+            $sql .= ' LIMIT '.$queryset->limit;
+        if ($queryset->offset)
+            $sql .= ' OFFSET '.$queryset->offset;
+        return $sql;
+    }
 
     function compileCount(QuerySet $queryset) {
         $model = $queryset->model;
         $table = $model::$meta['table'];
         list($where, $having) = $this->getWhereHavingClause($queryset);
         $joins = $this->getJoins($queryset);
-        $sql = 'SELECT COUNT(*) AS count FROM '.$this->quote($table).$joins.$where;
-        $exec = Manager::getConnection($model)->getExecutor(
-            new Statement($sql, $this->params));
-        $row = $exec->getArray();
-        return $row['count'];
+        $meat = $this->quote($table).$joins.$where;
+        $sql = "SELECT COUNT(*) as count FROM ";
+        if ($limit = $this->getLimit($queryset)) {
+            // Use subquery to apply the limit and offset
+            $sql .= "(SELECT 1 FROM {$meat}{$limit}) A1";
+        }
+        else {
+            $sql .= $meat;
+        }        
+        return new Statement($sql, $this->params);
     }
 
     function compileSelect(QuerySet $queryset) {
@@ -350,10 +364,7 @@ class Compiler extends SqlCompiler {
         
         $sql = 'SELECT '.implode(', ', $fields).' FROM '
             .$table.$joins.$where.$group_by.$having.$sort;
-        if ($queryset->limit)
-            $sql .= ' LIMIT '.$queryset->limit;
-        if ($queryset->offset)
-            $sql .= ' OFFSET '.$queryset->offset;
+
         switch ($queryset->lock) {
         case QuerySet::LOCK_EXCLUSIVE:
             $sql .= ' FOR UPDATE';
@@ -437,17 +448,20 @@ class Compiler extends SqlCompiler {
     function inspectTable($table) {
         static $cache = array();
 
-        // XXX: Assuming schema is not changing — add support to track
+        // XXX: Assuming schema is not changing — add support to track
         //      current schema
         if (isset($cache[$table]))
             return $cache[$table];
 
         $sql = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS '
-            .'WHERE TABLE_NAME = '.db_input($table).' AND TABLE_SCHEMA = DATABASE() '
+            .'WHERE TABLE_NAME = \''.$this->input($table).'\' AND TABLE_SCHEMA = DATABASE() '
             .'ORDER BY ORDINAL_POSITION';
-        $ex = new MysqlExecutor(new Statement($sql, array()));
+        
+        // XXX: This can't be here
+        
+        $ex = new MysqliExecutor(new Statement($sql, $this->params), $this->conn);
         $columns = array();
-        while (list($column) = $ex->getRow()) {
+        while (list($column) = $ex->fetchRow()) {
             $columns[] = $column;
         }
         return $cache[$table] = $columns;

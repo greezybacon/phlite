@@ -1,6 +1,6 @@
 <?php
 
-namespace Phlite\Db;
+namespace Phlite\Db\Model;
 
 class InstrumentedList
 extends ModelInstanceManager

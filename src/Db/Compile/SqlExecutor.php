@@ -15,6 +15,7 @@ interface SqlExecutor {
     
     function fetchRow();
     function fetchArray();
+    function getMap();
     
     /**
      * insert_id

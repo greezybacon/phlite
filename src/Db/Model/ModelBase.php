@@ -57,11 +57,11 @@ implements \JsonSerializable {
                         continue;
                     }    
                     else {
-                        $criteria[$F] = $this->ht[$local];
+                        $criteria[$F] = $this->__ht__[$local];
                     }
                 }
                 try {
-                    $v = $this->ht[$field] = $class::lookup($criteria);
+                    $v = $this->__ht__[$field] = $class::lookup($criteria);
                 }
                 catch (DoesNotExist $e) {
                     $v = null;
@@ -98,6 +98,7 @@ implements \JsonSerializable {
     }
     function __unset($field) {
         unset($this->__ht__[$field]);
+        unset($this->__dirty__[$field]);
     }
 
     function set($field, $value) {
@@ -113,7 +114,7 @@ implements \JsonSerializable {
             if ($value === null) {
                 if (in_array($j['local'], static::$meta['pk'])) {
                     // Reverse relationship — don't null out local PK
-                    $this->ht[$field] = $value;
+                    $this->__ht__[$field] = $value;
                     return;
                 }
                 // Pass. Set local field to NULL in logic below
@@ -150,6 +151,14 @@ implements \JsonSerializable {
     function setAll($props) {
         foreach ($props as $field=>$value)
             $this->set($field, $value);
+    }
+    
+    function __clone() {
+        $this->__new__ = true;
+        $this->__deleted__ = false;
+        foreach (static::$meta['pk'] as $f)
+            $this->__unset($f);
+        $this->__dirty__ = array_fill(array_keys($this->__ht__), null);
     }
 
     function __onload() {}
@@ -321,7 +330,7 @@ implements \JsonSerializable {
     
     // ---- JsonSerializable interface ------------------------
     function jsonSerialize() {
-        $fields = $this->ht;
+        $fields = $this->__ht__;
         foreach (static::$meta['joins'] as $k=>$j) {
             // For join relationships, drop local ID from the fields 
             // list. Instead, list the ID as the member of the join unless

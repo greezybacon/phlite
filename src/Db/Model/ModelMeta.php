@@ -60,12 +60,16 @@ class ModelMeta implements \ArrayAccess {
     function processJoin(&$j) {
         if (isset($j['reverse'])) {
             list($fmodel, $key) = explode('.', $j['reverse']);
+            if (strpos($fmodel, '\\') === false) {
+                // Transfer namespace from this model
+                $fmodel = $this['namespace']. '\\' . $fmodel;
+            }
             $info = $fmodel::$meta['joins'][$key];
             $constraint = array();
             if (!is_array($info['constraint']))
-                throw new OrmConfigurationException(sprintf(__(
+                throw new Exception\ModelConfigurationError(sprintf(
                     // `reverse` here is the reverse of an ORM relationship
-                    '%s: Reverse does not specify any constraints'),
+                    '%s: Reverse does not specify any constraints',
                     $j['reverse']));
             foreach ($info['constraint'] as $foreign => $local) {
                 list(,$field) = explode('.', $local);
@@ -81,6 +85,11 @@ class ModelMeta implements \ArrayAccess {
         // XXX: Make this better (ie. composite keys)
         foreach ($j['constraint'] as $local => $foreign) {
             list($class, $field) = explode('.', $foreign);
+            if (strpos($class, '\\') === false) {
+                // Transfer namespace from this model
+                $class = $this['namespace']. '\\' . $class;
+                $j['constraint'][$local] = "$class.$field";
+            }
             if ($local[0] == "'" || $field[0] == "'" || !class_exists($class))
                 continue;
             $j['fkey'] = array($class, $field);
@@ -108,6 +117,11 @@ class ModelMeta implements \ArrayAccess {
         switch ($what) {
         case 'fields':
             $this->base['fields'] = self::inspectFields();
+            break;
+        case 'namespace':
+            $namespace = explode('\\', $this->model);
+            array_pop($namespace);
+            $this->base['namespace'] = implode('\\', $namespace);
             break;
         default:
             throw new \Exception($what . ': No such meta-data');
