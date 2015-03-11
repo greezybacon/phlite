@@ -12,6 +12,7 @@ class ModelInstanceManager extends ResultSet {
     function __construct($queryset=false) {
         parent::__construct($queryset);
         if ($queryset) {
+            $this->model = $queryset->model;
             $this->map = $this->stmt->getMap();
         }
     }

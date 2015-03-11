@@ -111,7 +111,7 @@ class Logger extends Filterer {
      *
      * logger.debug("Houston, we have a %s", "thorny problem", exc_info=1)
      */
-    function debug($msg, $context) {
+    function debug($msg, $context=array()) {
         if ($this->isEnabledFor(self::DEBUG))
             $this->_log(self::DEBUG, $msg, $context);
     }

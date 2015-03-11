@@ -2,4 +2,4 @@
 
 namespace Phlite\Cli\Exception;
 
-class KeyboardInterrupt extends Exception {}
+class KeyboardInterrupt extends \Exception {}

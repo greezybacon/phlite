@@ -48,11 +48,11 @@ class LogRecord {
     }
 
     function getMessage() {
-        $msg = $this->msg;
-        foreach ($this->args as $k=>$v) {
-            $msg = str_replace("{{$k}}", $v, $msg);
-        }
-        return $msg;
+        $args = $this->args;
+        $msg = vsprintf($this->msg, $args);
+        return preg_replace_callback('`\{([^}]+)\}`', function($m) use ($args) {
+            return @$args[$m[1]];
+        }, $msg);
     }
 
     /**
@@ -63,7 +63,7 @@ class LogRecord {
      */
     static function makeRecord($dict) {
         $rv = new LogRecord(null, null, '', 0, '', array(), null, null);
-        foreach ($dict as $k=>&$v) {
+        foreach ($dict as $k=>$v) {
             $rv->{$k} = $v;
         } 
         return $rv;

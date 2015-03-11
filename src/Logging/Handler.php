@@ -16,6 +16,7 @@ use Phlite\Logging\Filterer;
 abstract class Handler extends Filterer {
 
     static $_handlers;
+    static $defaultFormatter;
 
     /**
      * Initializes the instance - basically setting the formatter to None
@@ -27,6 +28,8 @@ abstract class Handler extends Filterer {
         $this->level = Logger::_checkLevel($level);
         $this->formatter = null;
         //self::_addHandlerRef($this);
+        if (!isset(static::$defaultFormatter))
+            static::$defaultFormatter = new Formatter(Log::$BASIC_FORMAT);
     }
 
     function __get($prop) {

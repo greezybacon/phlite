@@ -16,10 +16,17 @@ implements SqlExecutor {
     var $backend;
     var $conn;
     var $res;   // Server resource / cursor
+    
+    // Timing
+    var $time_prepare;
+    var $time_fetch;
 
     function __construct(Statement $stmt, Db\Backend $bk) {
         $this->stmt = $stmt;
         $this->backend = $bk;
+    }
+    function __destruct() {
+        $this->close();
     }
     
     // Array of [count, model] values representing which fields in the
@@ -30,11 +37,13 @@ implements SqlExecutor {
     }
 
     function execute() {
+        // Lazy connect to the database
         if (!isset($this->conn))
             $this->conn = $this->backend->getConnection();
         
         // TODO: Detect server/client abort, pause and attempt reconnection
         
+        $start = microtime(true);
         if (!($this->res = $this->conn->prepare($this->stmt->sql)))
             throw new Exception\InconsistentModel(
                 'Unable to prepare query: '.$this->conn->error
@@ -48,6 +57,8 @@ implements SqlExecutor {
             throw new Exception\DbError('Unable to execute query: ' . $this->res->error);
         }
         $this->_setup_output();
+        
+        $this->time_prepare = microtime(true) - $start;
         return true;
     }
     
@@ -160,6 +171,10 @@ implements SqlExecutor {
     function close() {
         if (!$this->res)
             return;
+        
+        $this->time_fetch = microtime(true) - $this->time_prepare;
+        $total = $this->time_prepare + $this->time_fetch;
+        $this->stmt->log(['time'=>$total, 'fetch'=>$this->time_fetch, 'prepare'=>$this->time_prepare]);
 
         $this->res->close();
         $this->res = null;

@@ -5,6 +5,7 @@ namespace Phlite\Db\Model;
 use Phlite\Db\Exception;
 use Phlite\Db\Manager;
 use Phlite\Signal;
+use Phlite\Util;
 
 class ModelBase
 implements \JsonSerializable {
@@ -302,6 +303,7 @@ implements \JsonSerializable {
         # Refetch row from database
         if ($refetch) {
             $this->__ht__ = static::objects()->filter($this->getPk())->values()->one();
+            // TODO: Cache $this object
         }
         if ($wasnew) {
             $this->__onload();
@@ -326,6 +328,11 @@ implements \JsonSerializable {
         foreach (static::$meta['pk'] as $f)
             $pk[$f] = $this->__ht__[$f];
         return $pk;
+    }
+    
+    function __toString() {
+        $a = new Util\ArrayObject($this->getPk());
+        return sprintf('<%s %s>', get_class($this), $a->join('=',', '));
     }
     
     // ---- JsonSerializable interface ------------------------

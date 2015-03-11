@@ -76,7 +76,7 @@ class Formatter {
             $s = strftime($datefmt, $ct);
         }
         else {
-            $t = strftime('%Y-%m-%d %H:%M:%S', $ct);
+            $t = strftime('%X %x', $ct);
             $s = sprintf('%s,%03d', $t, $record->msecs);
         }
         return $s;
@@ -129,7 +129,7 @@ class Formatter {
     function _template($template, $context) {
         return preg_replace_callback('/{([^}]+)}/',
             function ($token) use ($context) {
-                return @$context[$token[1]] ?: $token[0];
+                return @$context[$token[1]] ?: @$context['args'][$token[1]] ?: $token[0];
             }, $template
         );
     }

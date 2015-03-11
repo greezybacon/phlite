@@ -15,7 +15,6 @@ implements \Iterator, \ArrayAccess, \Countable {
     function __construct($queryset=false) {
         $this->queryset = $queryset;
         if ($queryset) {
-            $this->model = $queryset->model;
             $this->stmt = $queryset->getQuery();
             $connection = Manager::getConnection($this->model);
             $this->resource = $connection->getExecutor($this->stmt);

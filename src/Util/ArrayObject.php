@@ -9,10 +9,9 @@ namespace Phlite\Util;
  *
  */
 class ArrayObject 
-implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
-    
-    protected $storage = array();
-    
+extends BaseList
+implements \ArrayAccess {
+        
     function __construct(array $array=array()) {
         $this->storage = $array;
     }
@@ -60,18 +59,29 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         return array_values($this->storage);
     }
     
-    static function fromKeys(Traversable $keys, $value=false) {
-        $o = new static();
-        foreach ($keys as $k)
-            $o[$k] = $value;
-        return $o;
+    /** 
+     * Implode an array with the key and value pair giving a glue, a 
+     * separator between pairs and the array to implode.
+     *
+     * @param string $glue The glue between key and value
+     * @param string $separator Separator between pairs
+     * @param array $array The array to implode
+     * @return string The imploded array
+     *
+     * References:
+     * http://us2.php.net/manual/en/function.implode.php
+     */    
+    function join($glue, $separator) {
+        $string = array();
+        foreach ( $this->storage as $key => $val ) { 
+            $string[] = "{$key}{$glue}{$val}";
+        }
+        return implode( $separator, $string );
     }
     
-    // Countable
-    function count() { return count($this->storage); }
-    
-    // IteratorAggregate
-    function getIterator() { return new \ArrayIterator($this->storage); }
+    static function fromKeys(Traversable $keys, $value=false) {
+        return new static(array_fill($keys, $value));
+    }
     
     // ArrayAccess
     function offsetExists($offset) { 
@@ -87,14 +97,6 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
     }
     function offsetUnset($offset) {
          unset($this->storage[$offset]);
-    }
-    
-    // Serializable
-    function serialize() { 
-        return serialize($this->storage); 
-    }
-    function unserialize($what) { 
-        $this->storage = unserialize($what);
     }
     
     function __toString() {

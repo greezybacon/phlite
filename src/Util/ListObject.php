@@ -12,9 +12,8 @@ namespace Phlite\Util;
  * Therefore $queue[-1] will refer to the last item in the list.
  */
 class ListObject
-implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
-
-    protected $storage = array();
+extends BaseList
+implements \ArrayAccess {
     
     function __construct(/* Iterable */ $array=array()) {
         foreach ($array as $v)
@@ -68,56 +67,8 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         return array_search($this->storage, $value);
     }
     
-    /**
-     * Sort the list in place.
-     * 
-     * Parameters:
-     * $key - (callable|int) A callable function to produce the sort keys
-     *      or one of the SORT_ constants used by the array_multisort
-     *      function
-     * $reverse - (bool) true if the list should be sorted descending
-     */
-    function sort($key=false, $reverse=false) {
-        if (is_callable($key)) {
-            $keys = array_map($key, $this->storage);
-            array_multisort($keys, $this->storage, 
-                $reverse ? SORT_DESC : SORT_ASC);
-        }
-        elseif ($key) {
-            array_multisort($this->storage,
-                $reverse ? SORT_DESC : SORT_ASC, $key);
-        }
-        elseif ($reverse) {
-            rsort($this->storage);
-        }
-        else
-            sort($this->storage);
-    }
-    
-    function reverse() {
-        return array_reverse($this->storage);
-    }
-    
-    function filter($callable) {
-        $new = new static();
-        foreach ($this->storage as $i=>$v)
-            if ($callable($v, $i))
-                $new[] = $v;
-        return $new;
-    }
-    
     function join($glue) {
         return implode($glue, $this->storage);
-    }
-
-    // IteratorAggregate
-    function getIterator() {
-        return new \ArrayIterator($this->storage);
-    }
-    
-    // Countable
-    function count($mode=COUNT_NORMAL) {
-        return count($this->storage, $mode);
     }
     
     // ArrayAccess
@@ -154,14 +105,6 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         elseif ($offset < 0)
             $offset += count($this->storage);
         return $this->pop($offset);
-    }
-    
-    // Serializable
-    function serialize() {
-        return serialize($this->storage);
-    }
-    function unserialize($what) {
-        $this->storage = unserialize($what);
     }
     
     function __toString() {

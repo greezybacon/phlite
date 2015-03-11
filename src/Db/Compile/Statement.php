@@ -2,6 +2,8 @@
 
 namespace Phlite\Db\Compile;
 
+use Phlite\Logging\Log;
+
 /**
  * Class: Statement
  *
@@ -32,15 +34,18 @@ class Statement {
         return $this->params;
     }
     
+    function log($context=array()) {
+        Log::getLogger('phlite.db')->debug($this, $context);
+    }
+    
     function toString($escape_cb=false) {
         if (!$escape_cb)
-            $escape_cb = function($i) { return $i; };
+            $escape_cb = function($i) { return "<$i>"; };
         
-        $self = $this;
+        $params = $this->params;
         $x = 0;
-        return preg_replace_callback('/\?/', function($m) use ($self, &$x, $escape_cb) {
-            $p = $self->params[$x++];
-            // FIXME:
+        return preg_replace_callback('/\?/', function($m) use ($params, &$x, $escape_cb) {
+            $p = $params[$x++];
             return $escape_cb($p);
         }, $this->sql);
     }
