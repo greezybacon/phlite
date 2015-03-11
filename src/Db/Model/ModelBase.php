@@ -58,6 +58,9 @@ implements \JsonSerializable {
                         continue;
                     }    
                     else {
+                        if (!isset($this->__ht__[$local]))
+                            // NULL foreign key
+                            return null;
                         $criteria[$F] = $this->__ht__[$local];
                     }
                 }

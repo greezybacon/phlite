@@ -87,7 +87,7 @@ implements SqlExecutor {
         if (!isset($this->res))
             $this->execute();
 
-        if (!($row = $this->res->fetch_array()))
+        if (!($row = $this->res->fetch_assoc()))
             return $this->close();
 
         return $row;
