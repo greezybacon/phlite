@@ -455,12 +455,12 @@ class Compiler extends SqlCompiler {
             return $cache[$table];
 
         $sql = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS '
-            .'WHERE TABLE_NAME = \''.$this->input($table).'\' AND TABLE_SCHEMA = DATABASE() '
+            .'WHERE TABLE_NAME = \''.$table.'\' AND TABLE_SCHEMA = DATABASE() '
             .'ORDER BY ORDINAL_POSITION';
         
         // XXX: This can't be here
         
-        $ex = new MysqliExecutor(new Statement($sql, $this->params), $this->conn);
+        $ex = new MysqliExecutor(new Statement($sql, array()), $this->conn);
         $columns = array();
         while (list($column) = $ex->fetchRow()) {
             $columns[] = $column;
