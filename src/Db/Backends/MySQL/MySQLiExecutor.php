@@ -107,11 +107,13 @@ implements SqlExecutor {
     }
 
     function _setup_output() {
-        if (!($meta = $this->res->result_metadata()))
+        if (!($meta = $this->res->result_metadata()) && $this->res->errno)
             throw new Exception\DbError(
-                'Unable to fetch statment metadata: ', $this->res->error);
-        $this->fields = $meta->fetch_fields();
-        $meta->free_result();
+                'Unable to fetch statment metadata: '. $this->res->error);
+        if ($meta) {
+            $this->fields = $meta->fetch_fields();
+            $meta->free_result();
+        }
     }
 
     // Iterator interface
