@@ -3,5 +3,5 @@
 namespace Phlite\Template;
 
 interface TemplateContextProcessor {
-    function getContext();
+    function getContext($request);
 }

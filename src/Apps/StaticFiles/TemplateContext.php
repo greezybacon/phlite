@@ -6,7 +6,7 @@ use Phlite\Template;
 
 class TemplateContext implements Template\TemplateContextProcessor {
     
-    function getContext() {
+    function getContext($request) {
         return ['STATIC_DIR' => '/Static'];
     }
 }
