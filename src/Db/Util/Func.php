@@ -4,6 +4,7 @@ namespace Phlite\Db\Util;
 
 class Func
 extends Expression {
+    var $func;
     
     function __construct($name) {
         $this->func = $name;

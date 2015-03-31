@@ -12,11 +12,16 @@ class Expression {
     function toSql($compiler, $model=false, $alias=false) {
         $O = array();
         foreach ($this->args as $field=>$value) {
-            list($field, $op) = $compiler->getField($field, $model);
-            if (is_callable($op))
-                $O[] = call_user_func($op, $field, $value, $model);
-            else
-                $O[] = sprintf($op, $field, $compiler->input($value));
+            if ($value instanceof Expression) {
+                $O[] = $value->toSql($compiler, $model);
+            }
+            else {
+                list($field, $op) = $compiler->getField($field, $model);
+                if (is_callable($op))
+                    $O[] = call_user_func($op, $field, $value, $model);
+                else
+                    $O[] = sprintf($op, $field, $compiler->input($value));
+            }
         }
         return implode(' ', $O) . ($alias ? ' AS ' . $alias : '');
     }

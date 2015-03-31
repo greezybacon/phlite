@@ -33,7 +33,7 @@ class BinaryExpression extends Expression {
         // with this one
         if ($lho && (!isset(self::$associative[$lho]))
             || !($comm = self::$associative[$lho])
-            || !in_array($this->operator, $comm))
+            || !in_array($this->operator, $comm)
         ) {
             $expr = ' ('.$expr.') ';
         }

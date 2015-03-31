@@ -2,19 +2,15 @@
 
 namespace Phlite\Db\Util;
 
-class Aggregate extends SqlFunction {
+class Aggregate
+extends Func {
 
-    var $func;
     var $expr;
     var $distinct=false;
     var $constraint=false;
 
     function __construct($func, $expr, $distinct=false, $constraint=false) {
         $this->func = $func;
-        if (is_string($expr))
-            $expr = new Field($expr);
-        elseif ($expr instanceof Expression)
-            throw new \InvalidArgumentException('$expr must be a string or Db\Util\Expression');
         $this->expr = $expr;
         $this->distinct = $distinct;
         if ($constraint instanceof Q)

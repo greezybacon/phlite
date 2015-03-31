@@ -21,6 +21,7 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
     var $lock = false;
     var $extra = array();
     var $distinct = array();
+    var $aggregated = false;
 
     const LOCK_EXCLUSIVE = 1;
     const LOCK_SHARED = 2;
@@ -231,6 +232,14 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         return $this;
     }
     
+    function aggregate() {
+        $this->aggregated = true;
+        $this->values();
+        foreach (func_get_args() as $D)
+            $this->annotate($D);
+        return $this;
+    }
+    
     protected function getCompiler() {
         $connection = Manager::getConnection($this->model);
         return $connection->getCompiler();
@@ -298,7 +307,7 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         // compilation preferences
         if (!$query->ordering && isset($model::$meta['ordering']))
             $query->ordering = $model::$meta['ordering'];
-        if (!$query->related && !$query->values && $model::$meta['select_related'])
+        if (!$query->related && !$query->values && !$query->aggregated && $model::$meta['select_related'])
             $query->related = $model::$meta['select_related'];
         if (!$query->defer && $model::$meta['defer'])
             $query->defer = $model::$meta['defer'];

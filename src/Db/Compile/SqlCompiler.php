@@ -99,7 +99,7 @@ abstract class SqlCompiler {
         // specifiction.
         $parts = explode('__', $field);
         $operator = static::$operators['exact'];
-        if (!isset($options['table'])) {
+        if ($parts && !isset($options['table'])) {
             $field = array_pop($parts);
             if (array_key_exists($field, static::$operators)) {
                 $operator = static::$operators[$field];

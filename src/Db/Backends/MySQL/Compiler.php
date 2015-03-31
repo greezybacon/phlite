@@ -318,7 +318,7 @@ class Compiler extends SqlCompiler {
                 $fields[$rootAlias .'.'. $this->quote($f)] = true;
             }
         }
-        else {
+        elseif (!$queryset->aggregated) {
             $fields[$rootAlias.'.*'] = true;   
         }
         $fields = array_keys($fields);
@@ -339,7 +339,7 @@ class Compiler extends SqlCompiler {
                 }
             }
             // If no group by has been set yet, use the root model pk
-            if (!$group_by) {
+            if (!$group_by && !$queryset->aggregated) {
                 foreach ($model::$meta['pk'] as $pk)
                     $group_by[] = $rootAlias .'.'. $pk;
             }
