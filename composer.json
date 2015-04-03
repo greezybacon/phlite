@@ -12,9 +12,28 @@
         }
     ],
 
+    "repositories": [
+        {
+            "type": "package",
+            "package": {
+                "name": "phppass/phppass",
+                "version": "0.3",
+                "dist": {
+                    "url": "http://www.openwall.com/phpass/phpass-0.3.tar.gz",
+                    "type": "tar.gz"
+                },
+                "source": {
+                    "url": "http://cvsweb.openwall.com/phpass",
+                    "type": "cvs"
+                }
+            }
+       }
+   ],
+
     "require": {
         "php": ">= 5.4.0",
-        "twig/twig": ">= 1.16, < 2.0"
+        "twig/twig": ">= 1.16, < 2.0",
+        "phppass/phppass": "= 0.3"
     },
     "autoload": {
         "psr-4": {"Phlite\\": "src/"}
