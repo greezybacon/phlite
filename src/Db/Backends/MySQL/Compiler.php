@@ -28,7 +28,8 @@ class Compiler extends SqlCompiler {
         'like' => '%1$s LIKE %2$s',
         'hasbit' => '%1$s & %2$s != 0',
         'in' => array('self', '__in'),
-        'intersect' => array('self', '__find_in_set'),  
+        'intersect' => array('self', '__find_in_set'),
+        'range' => array('self', '__between'),
     );
 
     // Thanks, http://stackoverflow.com/a/3683868
@@ -79,6 +80,11 @@ class Compiler extends SqlCompiler {
             return $parens ? ('('.$sql.')') : $sql;
         }
         return sprintf('FIND_IN_SET(%s, %s)', $b, $a);
+    }
+    
+    function __between($a, $b) {
+        // FIXME: Crash if b not an array of exactly two items
+        return sprintf('%1$s BETWEEN %2$s AND %3$s', $a, $b[0], $b[1]);
     }
 
     function compileJoin($tip, $model, $alias, $info, $extra=false) {
@@ -202,6 +208,33 @@ class Compiler extends SqlCompiler {
         }        
         return new Statement($sql, $this->params);
     }
+    
+    function getOrderByFields(QuerySet $queryset) {
+        $orders = array();
+        if (!($columns = $queryset->getSortFields()))
+            return $orders;
+        
+        foreach ($columns as $sort) {
+            $dir = 'ASC';
+            if ($sort instanceof Util\Expression) {
+                $field = $sort->toSql($this, $model);
+            }
+            else {
+                if ($sort[0] == '-') {
+                    $dir = 'DESC';
+                    $sort = substr($sort, 1);
+                }
+                list($field) = $this->getField($sort, $queryset->model);
+            }
+            // TODO: Throw exception if $field can be indentified as
+            //       invalid
+            if ($field instanceof Util\Expression)
+                $field = $field->toSql($this, $model);
+
+            $orders[] = $field.' '.$dir;
+        }
+        return $orders;
+    }
 
     function compileSelect(QuerySet $queryset) {
         $model = $queryset->model;
@@ -216,28 +249,9 @@ class Compiler extends SqlCompiler {
 
         // Compile the ORDER BY clause
         $sort = '';
-        if (($columns = $queryset->getSortFields()) && !isset($this->options['nosort'])) {
-            $orders = array();
-            foreach ($columns as $sort) {
-                $dir = 'ASC';
-                if ($sort instanceof Util\Expression) {
-                    $field = $sort->toSql($this, $model);
-                }
-                else {
-                    if ($sort[0] == '-') {
-                        $dir = 'DESC';
-                        $sort = substr($sort, 1);
-                    }
-                    list($field) = $this->getField($sort, $model);
-                }
-                // TODO: Throw exception if $field can be indentified as
-                //       invalid
-                if ($field instanceof Util\Expression)
-                    $field = $field->toSql($this, $model);
-
-                $orders[] = $field.' '.$dir;
-            }
-            $sort = ' ORDER BY '.implode(', ', $orders);
+        if (!isset($this->options['nosort'])) {
+            if ($orders = $this->getOrderByFields($queryset))
+                $sort = ' ORDER BY '.implode(', ', $orders);
         }
 
         // Compile the field listing
@@ -309,7 +323,7 @@ class Compiler extends SqlCompiler {
                     $group_by[] = $unaliased;
             }
         }
-        // Simple selection from one table
+        // Simple selection from one table, with deferred fields
         elseif ($queryset->defer) {
             $model::_inspect();
             foreach ($model::$meta['fields'] as $f) {

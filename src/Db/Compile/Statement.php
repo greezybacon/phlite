@@ -40,7 +40,11 @@ class Statement {
     
     function toString($escape_cb=false) {
         if (!$escape_cb)
-            $escape_cb = function($i) { return "<$i>"; };
+            $escape_cb = function($i) { 
+                if ($i instanceof \DateTime)
+                    $i = $i->format('Y-m-d H:i:s');
+                return "<$i>"; 
+            };
         
         $params = $this->params;
         $x = 0;
