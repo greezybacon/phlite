@@ -7,7 +7,6 @@ use Phlite\Request\Request;
 use Phlite\Request\TemplateResponse;
 
 class HttpException extends \Exception {
-    
     static $status = 500;
     
     var $code;
@@ -30,7 +29,7 @@ class HttpException extends \Exception {
         	return $response;
 		}
 		catch (\Twig_Error_Loader $ex) {
-			return new HttpResponse($this->message, static::$status);
+			return new HttpResponse($this->message, $this->code);
 		}
     }
     

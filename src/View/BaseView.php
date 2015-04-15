@@ -53,7 +53,7 @@ abstract class BaseView {
     
     static function getAllowedMethods() {
         $methods = array();
-        $class = new \ReflectionClass($this);
+        $class = new \ReflectionClass(get_class());
         foreach (array('get', 'post', 'delete', 'put', 'head') as $m) {
             if (($R = $class->getMethod($m))
                 && ($R->getDeclaringClass()->getName() != __CLASS__)

@@ -40,6 +40,8 @@ class MiddlewareList extends ListObject {
             if ($response && $response instanceof Response)
                 return $response;
         }
+        if (method_exists($ex, 'getResponse'))
+            return $ex->getResponse($request);
     }
 
     function reverse() {
