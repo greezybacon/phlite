@@ -96,7 +96,7 @@ class Manager {
     protected static function delete(Model\ModelBase $model) {
         Model\ModelInstanceManager::uncache($model);
         $connection = static::getManager()->getConnection($model);
-        $stmt = $conection->getCompiler()->compileDelete($model);
+        $stmt = $connection->getCompiler()->compileDelete($model);
         return $connection->getExecutor($stmt);
     }
     

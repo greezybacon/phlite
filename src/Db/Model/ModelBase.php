@@ -67,7 +67,7 @@ implements \JsonSerializable {
                 try {
                     $v = $this->__ht__[$field] = $class::lookup($criteria);
                 }
-                catch (DoesNotExist $e) {
+                catch (Exception\DoesNotExist $e) {
                     $v = null;
                 }
                 return $v;
@@ -233,13 +233,8 @@ implements \JsonSerializable {
                     $criteria))
                 return $cached;
         }
-
-        try {
-            return static::objects()->filter($criteria)->one();
-        }
-        catch (Exception\DoesNotExist $e) {
-            return null;
-        }
+        
+        return static::objects()->filter($criteria)->one();
     }
 
     function delete($pk=false) {
