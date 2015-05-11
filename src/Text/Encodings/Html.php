@@ -2,22 +2,24 @@
 
 namespace Phlite\Text\Encodings;
 
-use Phlite\Text\Codec;
-use Phlite\Text\CodecInfo;
+use Phlite\Text;
 
-class Html extends CodecInfo {
+class Html extends Text\CodecInfo {
 
     function encode($obj, $errors=false) {
-        return htmlentities((string) $obj);
+        $flags = ENT_COMPAT | ENT_HTML401;
+        return htmlspecialchars((string) $obj, $flags,
+            $obj instanceof Text\Unicode ? $obj->getEncoding() : 'utf-8');
     }
 
     function decode($obj, $errors=false) {
-        return html_entity_decode((string) $obj, $errors == 'strict',
+        $flags = ENT_COMPAT | ENT_HTML401;
+        return htmlspecialchars_decode((string) $obj, $flags, $errors == 'strict',
             $obj->encoding);
     }
 }
 
-Codec::register(function($encoding) {
+Text\Codec::register(function($encoding) {
     if ($encoding == 'html')
         return new Html();
 });

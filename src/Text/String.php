@@ -2,23 +2,39 @@
 
 namespace Phlite\Text;
 
-class String extends BaseString {
+interface String {
+
+    // Wrappers for built-in string functions
+    function substr($start, $length=false);
+    function indexOf($needle);
+    function ltrim($chars=false);
+    function rtrim($chars=false);
+    function trim($chars=false);
+    function explode($sep, $max=false);
+    function upper();
+    function lower();
+    function unpack($format);
     
-    function startsWith($what) {
-        return strpos($this->string, $what) === 0;
-    }
+    // Comparison
+    function cmp($other);
+    function equals($other);
     
-    function endsWith($what) {
-        $length = strlen($what);
-        if ($length === 0)
-            return true;
-        
-        return substr($this->string, -$length) == $what;
-    }
+    // Other useful string operations
+    function append($what);
+    function capitalize();
+    function substrCount($needle);
+    function endsWith($what);
+    function splice($offset, $length, $repl='');
+    function startsWith($what);
+    function width();
+    function wrap($width, $delimiter="\n", $cut=false);
     
-    function slice($start, $length=false) {
-        return $length
-            ? new static(substr($this->string, $start, $length))
-            : new static(substr($this->string, $start));
-    }
+    // Regular expressions
+    function search($pattern); // returns count of matches
+    function matches($pattern);
+    function replace($pattern, $replacement, $max=false);
+    function split($pattern, $max=false);
+    
+    // Hash-lib
+    function hash($func); //  u('')->hash('md5')->encode('hex');
 }

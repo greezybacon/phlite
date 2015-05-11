@@ -4,7 +4,7 @@ namespace Phlite\Text;
 
 abstract class CodecInfo {
 
-    var $name = false;
+    static $name = false;
 
     abstract function encode($what, $errors=false);
 

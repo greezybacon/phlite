@@ -9,11 +9,17 @@ class Codec {
     private static $registry = array();
 
     static function encode($what, $encoding='ascii', $errors='strict') {
-        return static::lookup($encoding)->encode($what, $errors);
+        $rv = static::lookup($encoding)->encode($what, $errors);
+        if (!$rv instanceof String)
+            $rv = new Bytes($rv);
+        return $rv;
     }
 
     static function decode($what, $encoding='ascii', $errors='scrict') {
-        return static::lookup($encoding)->decode($what, $errors);
+        $rv = static::lookup($encoding)->decode($what, $errors);
+        if (!$rv instanceof String)
+            $rv = new Bytes($rv);
+        return $rv;
     }
 
     static function register($search_func) {
@@ -31,8 +37,15 @@ class Codec {
         }
         throw new DomainException($encoding.': Unable to find codec');
     }
+    
+    /**
+     * Convenience method to load a module from the Encodings/ folder
+     */
+    static function load($module) {
+        include_once "Encodings/{$module}.php";
+    }
 }
 
 // Load standard encodings
-require_once 'Encodings/Base64.php';
-require_once 'Encodings/MbString.php';
+Codec::load('basic');
+Codec::load('mbstring');

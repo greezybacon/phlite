@@ -2,40 +2,45 @@
 
 namespace Phlite\Text;
 
-class BaseString implements \ArrayAccess {
+class BaseString implements \ArrayAccess, \Countable {
     protected $string;
-    protected $length;
 
     function __construct($string='') {
-        $this->string = $string;
-        $this->length = strlen($string);
+        $this->string = (string) $string;
     }
 
-    function append($what, $length=false) {
+    function append($what) {
         $this->string .= $what;
-        $this->length += strlen($what);
+    }
+
+    function length() {
+        return strlen($this->string);
     }
     
+    // ---- Countable interface -------------------------------
+    function count() {
+        return $this->length();
+    }
+    
+    // ---- ArrayAccess interface -----------------------------
     function offsetGet($offset) {
         return $this->string[$offset];
     }
     function offsetExists($offset) {
-        return $offset < $this->length;
+        return $offset < $this->length();
     }
     function offsetSet($offset, $value) {}
     function offsetUnset($offset) {}
-        
-    function __toString() { 
-        return $this->string;
+    
+    function set($what) {
+        $this->string = $what;
     }
     function get() {
         return $this->string;
     }
-    function length() {
-        return $this->length;
-    }
-    function set($what) {
-        $this->string = $what;
-        $this->length = strlen($what);
+    
+    // ---- (string) coersion ---------------------------------
+    function __toString() { 
+        return $this->string;
     }
 }

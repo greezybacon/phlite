@@ -64,9 +64,10 @@ class BytesView extends Bytes {
             $parts[] = new static($this->string, $w['start'], @$w['stop'] ?: false);
         }   
         return $parts;
-    }   
-
-    function unpack($format, $length=false) {
-        return unpack($format, (string) $this);
+    }
+    
+    // ---- ArrayAccess interface -----------------------------
+    function offsetGet($offset) {
+        return $this->string[min($offset + $this->start, $this->end)];
     }
 }
