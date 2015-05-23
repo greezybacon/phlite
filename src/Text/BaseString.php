@@ -24,10 +24,12 @@ class BaseString implements \ArrayAccess, \Countable {
     
     // ---- ArrayAccess interface -----------------------------
     function offsetGet($offset) {
+        if ($offset < 0)
+            return substr($this->string, $offset, 1);
         return $this->string[$offset];
     }
     function offsetExists($offset) {
-        return $offset < $this->length();
+        return abs($offset) < $this->length();
     }
     function offsetSet($offset, $value) {}
     function offsetUnset($offset) {}
