@@ -84,7 +84,7 @@ class Backend extends Db\Backend {
                 'Unable to connect to MySQL database %s@%s using supplied credentials',
                 $user, $host));
         
-        //Select the database, if any.
+        // Select the database, if any.
         if (isset($this->info['NAME'])) {
             if (!$this->conn->select_db($this->info['NAME']))
                 throw new Db\Exception\ConnectionError(sprintf(
@@ -92,14 +92,19 @@ class Backend extends Db\Backend {
                 ));
         }
 
-        //set desired encoding just in case mysql charset is not UTF-8 - Thanks to FreshMedia
-        $this->set_variable('NAMES', 'utf8');
-        $this->set_variable('CHARACTER SET', 'utf8');
-        $this->set_variable('COLLATION_CONNECTION', 'utf8_general_ci');
+        // Set desired encoding according to settings.php
+        // Thanks to FreshMedia
+        $this->set_all(array(
+            // TODO: Consider options in settings.php
+            'NAMES'                 => 'utf8',
+            'CHARACTER SET'         => 'utf8',
+            'COLLATION_CONNECTION'  => 'utf8_general_ci',
+            'SQL_MODE'              => '',
+        ));
         $this->conn->set_charset('utf8');
-        $this->set_variable('sql_mode', '');
 
-        // Start a new transaction -- disable autocommit
+        // Start a new transaction -- disable autocommit. XXX: This could be
+        // sent in the set_all() call above as AUTOCOMMIT => 0|1
         if (isset($this->info['OPTIONS']['autocommit']))
             $this->conn->autocommit($this->info['OPTIONS']['autocommit']);
     }
@@ -111,6 +116,15 @@ class Backend extends Db\Backend {
 
     function set_variable($variable, $value, $type='session') {
         $sql = sprintf('SET %s %s=%s', strtoupper($type), $variable, $this->escape($value));
+        return $this->conn->query($sql);
+    }
+
+    function set_all($variables, $type='session') {
+        $set = array();
+        foreach ($variables as $k=>$v) {
+            $set[] = "$type $k = ".$this->escape($v);
+        }
+        $sql = 'SET ' . implode(', ', $set);
         return $this->conn->query($sql);
     }
     
