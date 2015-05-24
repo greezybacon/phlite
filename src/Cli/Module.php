@@ -143,7 +143,10 @@ abstract class Module {
     }
 
     function fail($message) {
-        $this->stderr->write($message . "\n");
+        $TI = $this->stderr->getTermInfo();
+        $this->stderr->write($TI->template(
+            "{setaf:WHITE}!!! {setaf:RED}$message{sgr0}\n"
+        ));
         die();
     }
 
