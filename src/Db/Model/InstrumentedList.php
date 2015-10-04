@@ -6,43 +6,92 @@ class InstrumentedList
 extends ModelInstanceManager
 implements \JsonSerializable {
     var $key;
-    var $id;
-    var $model;
 
     function __construct($fkey, $queryset=false) {
-        list($model, $this->key, $this->id) = $fkey;
-        if (!$queryset)
-            $queryset = $model::objects()->filter(array($this->key=>$this->id));
+        list($model, $this->key) = $fkey;
+        if (!$queryset) {
+            $queryset = $model::objects()->filter($this->key);
+            if ($related = $model::getMeta('select_related'))
+                $queryset->select_related($related);
+        }
         parent::__construct($queryset);
         $this->model = $model;
-        if (!$this->id)
-            $this->resource = null;
     }
 
     function add($object, $at=false) {
         if (!$object || !$object instanceof $this->model)
-            throw new Exception\OrmError(__('Attempting to add invalid object to list'));
+            throw new Exception(sprintf(
+                'Attempting to add invalid object to list. Expected <%s>, but got <%s>',
+                $this->model,
+                get_class($object)
+            ));
 
-        $object->set($this->key, $this->id);
-        $object->save();
+        foreach ($this->key as $field=>$value)
+            $object->set($field, $value);
+
+        if (!$object->__new__)
+            $object->save();
 
         if ($at !== false)
             $this->cache[$at] = $object;
         else
             $this->cache[] = $object;
+
+        return $object;
     }
-    function remove($object) {
-        $object->delete();
-        // XXX: Delete from local cache
+
+    function remove($object, $delete=true) {
+        if ($delete)
+            $object->delete();
+        else
+            foreach ($this->key as $field=>$value)
+                $object->set($field, null);
     }
 
     function reset() {
         $this->cache = array();
+        unset($this->resource);
+    }
+
+    /**
+     * Slight edit to the standard ::next() iteration method which will skip
+     * deleted items.
+     */
+    function next() {
+        do {
+            parent::next();
+        }
+        while ($this->valid() && $this->current()->__deleted__);
+    }
+
+    /**
+     * Reduce the list to a subset using a simply key/value constraint. New
+     * items added to the subset will have the constraint automatically
+     * added to all new items.
+     */
+    function window($constraint) {
+        $model = $this->model;
+        $fields = $model::getMeta('fields');
+        $key = $this->key;
+        foreach ($constraint as $field=>$value) {
+            if (!is_string($field) || false === in_array($field, $fields))
+                throw new OrmException('InstrumentedList windowing must be performed on local fields only');
+            $key[$field] = $value;
+        }
+        return new static(array($this->model, $key), $this->filter($constraint));
+    }
+
+    // Save all changes made to any list items
+    function saveAll() {
+        foreach ($this as $I)
+            if (!$I->save())
+                return false;
+        return true;
     }
 
     // QuerySet delegates
     function count() {
-        return $this->queryset->count();
+        return $this->objects()->count();
     }
     function exists() {
         return $this->queryset->exists();
@@ -74,7 +123,7 @@ implements \JsonSerializable {
     function __call($func, $args) {
         return call_user_func_array(array($this->objects(), $func), $args);
     }
-    
+
     // ---- JsonSerializable interface ------------------------
     function jsonSerialize() {
         return $this->queryset->asArray();

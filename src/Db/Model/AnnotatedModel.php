@@ -35,6 +35,9 @@ class AnnotatedModel {
             throw new Exception\OrmError('Annotated fields are read-only');
         return $this->model->set($what, $to);
     }
+    function __isset($what) {
+        return isset($this->annotations[$what]) || $this->model->__isset($what);
+    }
 
     // Delegate everything else to the model
     function __call($what, $how) {

@@ -5,42 +5,42 @@ namespace Phlite\Db\Backends\MySQL;
 use Phlite\Db;
 
 class Backend extends Db\Backend {
-    
-    static $compiler =  'Phlite\Db\Backends\MySQL\Compiler';
-    static $executor =  'Phlite\Db\Backends\MySQL\MySQLiExecutor';
-        
+
+    static $compiler = 'Phlite\Db\Backends\MySQL\Compiler';
+    static $executor = 'Phlite\Db\Backends\MySQL\MySQLiExecutor';
+
     var $info;
     var $conn;
-    
+
     function __construct(array $info) {
         $this->info = $info;
     }
-    
+
     function getCompiler($options=false) {
        $class = static::$compiler;
        return new $class($this, $options);
     }
-    
+
     function getExecutor(Db\Compile\Statement $stmt) {
         $class = static::$executor;
         return new $class($stmt, $this);
     }
-    
+
     function getConnection() {
         $this->connect();
         return $this->conn;
     }
-    
+
     function connect() {
         if (isset($this->conn))
             // No auto reconnect, use ::disconnect() first
             return;
-        
+
         $user = $this->info['USER'];
         $passwd = $this->info['PASSWORD'];
         $host = $this->info['HOST'];
         $options = @$this->info['OPTIONS'] ?: array();
-        
+
         // Assertions
         if(!strlen($user) || !strlen($host))
             throw new \Exception('Database settings are missing USER and HOST settings');
@@ -83,7 +83,7 @@ class Backend extends Db\Backend {
             throw new Db\Exception\ConnectionError(sprintf(
                 'Unable to connect to MySQL database %s@%s using supplied credentials',
                 $user, $host));
-        
+
         // Select the database, if any.
         if (isset($this->info['NAME'])) {
             if (!$this->conn->select_db($this->info['NAME']))
@@ -108,7 +108,7 @@ class Backend extends Db\Backend {
         if (isset($this->info['OPTIONS']['autocommit']))
             $this->conn->autocommit($this->info['OPTIONS']['autocommit']);
     }
-    
+
     function get_variable($variable, $type='session') {
         $sql = sprintf('SELECT @@%s.%s', $type, $variable);
         return db_result(db_query($sql));
@@ -127,7 +127,7 @@ class Backend extends Db\Backend {
         $sql = 'SET ' . implode(', ', $set);
         return $this->conn->query($sql);
     }
-    
+
     function escape($what) {
         return $this->conn->escape_string($what);
     }

@@ -2,6 +2,8 @@
 
 namespace Phlite\Db\Model;
 
+use Phlite\Db\Compile;
+
 class ModelInstanceManager extends ResultSet {
 
     var $model;
@@ -9,18 +11,9 @@ class ModelInstanceManager extends ResultSet {
 
     static $objectCache = array();
 
-    function __construct($queryset=false) {
-        parent::__construct($queryset);
-        if ($queryset) {
-            $this->model = $queryset->model;
-            $this->map = $this->stmt->getMap();
-        }
-    }
-
     function cache($model) {
-        $model::_inspect();
         $key = sprintf('%s.%s',
-            $model::$meta->model, implode('.', $model->pk));
+            $model::$meta->model, implode('.', $model->get('pk')));
         self::$objectCache[$key] = $model;
     }
 
@@ -37,14 +30,18 @@ class ModelInstanceManager extends ResultSet {
         unset(self::$objectCache[$key]);
     }
 
+    static function flushCache() {
+        self::$objectCache = array();
+    }
+
     static function checkCache($modelClass, $fields) {
-        $key = $modelClass;
-        foreach ($modelClass::$meta['pk'] as $f)
+        $key = $modelClass::$meta->model;
+        foreach ($modelClass::getMeta('pk') as $f)
             $key .= '.'.$fields[$f];
         return @self::$objectCache[$key];
     }
-    
-    /**  
+
+    /**
      * getOrBuild
      *
      * Builds a new model from the received fields or returns the model
@@ -61,11 +58,11 @@ class ModelInstanceManager extends ResultSet {
     function getOrBuild($modelClass, $fields, $cache=true) {
         // Check for NULL primary key, used with related model fetching. If
         // the PK is NULL, then consider the object to also be NULL
-        foreach ($modelClass::$meta['pk'] as $pkf) {
+        foreach ($modelClass::getMeta('pk') as $pkf) {
             if (!isset($fields[$pkf])) {
                 return null;
-            }    
-        }    
+            }
+        }
         $annotations = $this->queryset->annotations;
         $extras = array();
         // For annotations, drop them from the $fields list and add them to
@@ -74,7 +71,7 @@ class ModelInstanceManager extends ResultSet {
         // using an AnnotatedModel instance.
         if ($annotations && $modelClass == $this->model) {
             foreach ($annotations as $name=>$A) {
-                if (isset($fields[$name])) {
+                if (array_key_exists($name, $fields)) {
                     $extras[$name] = $fields[$name];
                     unset($fields[$name]);
                 }
@@ -90,6 +87,12 @@ class ModelInstanceManager extends ResultSet {
             if ($cache)
                 $this->cache($m);
         }
+        elseif (get_class($m) != $modelClass) {
+            // Change the class of the object to be returned to match what
+            // was expected
+            // TODO: Emit a warning?
+            $m = new $modelClass($m->ht);
+        }
         // Wrap annotations in an AnnotatedModel
         if ($extras) {
             $m = new AnnotatedModel($m, $extras);
@@ -97,7 +100,7 @@ class ModelInstanceManager extends ResultSet {
         // TODO: If the model has deferred fields which are in $fields,
         // those can be resolved here
         return $m;
-    }  
+    }
 
     /**
      * buildModel
@@ -136,9 +139,11 @@ class ModelInstanceManager extends ResultSet {
                     $tail = array_pop($path);
                     $m = $model;
                     foreach ($path as $field) {
-                        $m = $m->get($field);
+                        if (!($m = $m->get($field)))
+                            break;
                     }
-                    $m->set($tail, $this->getOrBuild($model_class, $record));
+                    if ($m)
+                        $m->set($tail, $this->getOrBuild($model_class, $record));
                 }
                 $offset += count($fields);
             }
@@ -150,15 +155,51 @@ class ModelInstanceManager extends ResultSet {
     }
 
     function fillTo($index) {
+        $this->prime();
         $func = ($this->map) ? 'fetchRow' : 'fetchArray';
         while ($this->resource && $index >= count($this->cache)) {
             if ($row = $this->resource->{$func}()) {
                 $this->cache[] = $this->buildModel($row);
             } else {
                 $this->resource->close();
-                $this->resource = null;
+                $this->resource = false;
                 break;
             }
+        }
+    }
+
+    function prime() {
+        parent::prime();
+        if ($this->resource) {
+            $this->map = $this->resource->getMap();
+        }
+    }
+
+    /**
+     * Find the first item in the current set which matches the given criteria.
+     * This would be used in favor of ::filter() which might trigger another
+     * database query. The criteria is intended to be quite simple and should
+     * not traverse relationships which have not already been fetched.
+     * Otherwise, the ::filter() or ::window() methods would provide better
+     * performance.
+     *
+     * Example:
+     * >>> $a = new User();
+     * >>> $a->roles->add(Role::lookup(['name' => 'administator']));
+     * >>> $a->roles->findFirst(['roles__name__startswith' => 'admin']);
+     * <Role: administrator>
+     */
+    function findFirst(array $criteria) {
+        foreach ($this as $record) {
+            $matches = true;
+            foreach ($criteria as $field=>$check) {
+                if (!Compile\SqlCompiler::evaluate($record, $field, $check)) {
+                    $matches = false;
+                    break;
+                }
+            }
+            if ($matches)
+                return $record;
         }
     }
 }

@@ -28,18 +28,21 @@ implements \JsonSerializable {
     function get($field, $default=false) {
         if (array_key_exists($field, $this->__ht__))
             return $this->__ht__[$field];
-        elseif (isset(static::$meta['joins'][$field])) {
-            // Make sure joins were inspected
-            if (!static::$meta instanceof ModelMeta)
-                static::_inspect();
-            $j = static::$meta['joins'][$field];
+        elseif (($joins = static::getMeta('joins')) && isset($joins[$field])) {
+            $j = $joins[$field];
             // Support instrumented lists and such
-            if (isset($this->__ht__[$j['local']])
-                    && isset($j['list']) && $j['list']) {
-                $fkey = $j['fkey'];
-                $v = $this->__ht__[$field] = new InstrumentedList(
-                    // Send Model, Foriegn-Field, Local-Id
-                    array($fkey[0], $fkey[1], $this->get($j['local']))
+            if (isset($j['list']) && $j['list']) {
+                $class = $j['fkey'][0];
+                $fkey = array();
+                // Localize the foreign key constraint
+                foreach ($j['constraint'] as $local=>$foreign) {
+                    list($_klas,$F) = $foreign;
+                    $fkey[$F ?: $_klas] = ($local[0] == "'")
+                        ? trim($local, "'") : $this->ht[$local];
+                }
+                $v = $this->ht[$field] = new $j['broker'](
+                    // Send Model, [Foriegn-Field => Local-Id]
+                    array($class, $fkey)
                 );
                 return $v;
             }
@@ -47,16 +50,16 @@ implements \JsonSerializable {
             elseif (isset($j['fkey'])) {
                 $criteria = array();
                 foreach ($j['constraint'] as $local => $foreign) {
-                    list($klas,$F) = explode('.', $foreign);
+                    list($klas,$F) = $foreign;
                     if (class_exists($klas))
                         $class = $klas;
                     if ($local[0] == "'") {
                         $criteria[$F] = trim($local,"'");
-                    }    
-                    elseif ($foreign[0] == "'") {
+                    }
+                    elseif ($F[0] == "'") {
                         // Does not affect the local model
                         continue;
-                    }    
+                    }
                     else {
                         if (!isset($this->__ht__[$local]))
                             // NULL foreign key
@@ -88,7 +91,15 @@ implements \JsonSerializable {
 
         if (isset($default))
             return $default;
-        // TODO: Inspect fields from database before throwing this error
+
+        // For new objects, assume the field is NULLable
+        if ($this->__new__)
+            return null;
+
+        // Check to see if the column referenced is actually valid
+        if (in_array($field, static::getMeta('fields')))
+            return null;
+
         throw new Exception\OrmError(sprintf('%s: %s: Field not defined',
             get_class($this), $field));
     }
@@ -96,48 +107,70 @@ implements \JsonSerializable {
         return $this->get($field, null);
     }
 
+    function getByPath($path) {
+        if (is_string($path))
+            $path = explode('__', $path);
+        $root = $this;
+        foreach ($path as $P)
+            if (!($root = $root->get($P)))
+                break;
+        return $root;
+    }
+
     function __isset($field) {
         return array_key_exists($field, $this->__ht__)
             || isset(static::$meta['joins'][$field]);
     }
     function __unset($field) {
-        unset($this->__ht__[$field]);
+        if ($this->__isset($field))
+            unset($this->__ht__[$field]);
+        else
+            unset($this->{$field});
         unset($this->__dirty__[$field]);
     }
 
     function set($field, $value) {
         // Update of foreign-key by assignment to model instance
-        if (isset(static::$meta['joins'][$field])) {
-            static::_inspect();
-            $j = static::$meta['joins'][$field];
+        $related = false;
+        $joins = static::getMeta('joins');
+        if (isset($joins[$field])) {
+            $j = $joins[$field];
             if ($j['list'] && ($value instanceof InstrumentedList)) {
                 // Magic list property
                 $this->__ht__[$field] = $value;
                 return;
             }
             if ($value === null) {
+                $this->__ht__[$field] = $value;
                 if (in_array($j['local'], static::$meta['pk'])) {
                     // Reverse relationship — don't null out local PK
-                    $this->__ht__[$field] = $value;
                     return;
                 }
                 // Pass. Set local field to NULL in logic below
             }
             elseif ($value instanceof $j['fkey'][0]) {
-                if ($value->__new__)
-                    $value->save();
                 // Capture the object under the object's field name
                 $this->__ht__[$field] = $value;
-                $value = $value->get($j['fkey'][1]);
+                if ($value->__new__)
+                    // save() will be performed when saving this object
+                    $value = null;
+                else
+                    $value = $value->get($j['fkey'][1]);
                 // Fall through to the standard logic below
             }
             else
                 throw new \InvalidArgumentException(
                     sprintf(__('Expecting NULL or instance of %s. Got a %s instead'),
-                    $j['fkey'][0], get_class($value)));
+                    $j['fkey'][0], is_object($value) ? get_class($value) : gettype($value)));
 
             // Capture the foreign key id value
             $field = $j['local'];
+        }
+        // elseif $field is in a relationship, adjust the relationship
+        elseif (isset(static::$meta['foreign_keys'][$field])) {
+            // meta->foreign_keys->{$field} points to the property of the
+            // foreign object. For instance 'object_id' points to 'object'
+            $related = static::$meta['foreign_keys'][$field];
         }
         $old = isset($this->__ht__[$field]) ? $this->__ht__[$field] : null;
         if ($old != $value) {
@@ -145,6 +178,11 @@ implements \JsonSerializable {
             // replaced in the dirty array
             if (!array_key_exists($field, $this->__dirty__))
                 $this->__dirty__[$field] = $old;
+            if ($related)
+                // $related points to a foreign object propery. If setting a
+                // new object_id value, the relationship to object should be
+                // cleared and rebuilt
+                unset($this->__ht__[$related]);
         }
         $this->__ht__[$field] = $value;
     }
@@ -156,7 +194,7 @@ implements \JsonSerializable {
         foreach ($props as $field=>$value)
             $this->set($field, $value);
     }
-    
+
     function __clone() {
         $this->__new__ = true;
         $this->__deleted__ = false;
@@ -166,15 +204,21 @@ implements \JsonSerializable {
     }
 
     function __onload() {}
+    function __onsave() {}
     static function __oninspect() {}
 
     static function _inspect() {
-        if (!static::$meta instanceof ModelMeta) {
-            static::$meta = new ModelMeta(get_called_class());
+        static::$meta = new ModelMeta(get_called_class());
 
-            // Let the model participate
-            static::__oninspect();
-        }
+        // Let the model participate
+        static::__oninspect();
+    }
+
+    static function getMeta($key=false) {
+        if (!static::$meta instanceof ModelMeta)
+            static::_inspect();
+        $M = static::$meta;
+        return ($key) ? $M->offsetGet($key) : $M;
     }
 
     /**
@@ -190,7 +234,7 @@ implements \JsonSerializable {
 
     /**
      * lookup
-     * 
+     *
      * Retrieve a record by its primary key. This method may be short
      * circuited by model caching if the record has already been loaded by
      * the database. In such a case, the database will not be consulted for
@@ -214,7 +258,7 @@ implements \JsonSerializable {
      *      arguments or key/value array as the function's first argument
      *
      * Returns:
-     * (Object<ModelBase>|null) a single instance of the sought model or 
+     * (Object<ModelBase>|null) a single instance of the sought model or
      * null if no such instance exists.
      *
      * Throws:
@@ -224,20 +268,21 @@ implements \JsonSerializable {
         // Model::lookup(1), where >1< is the pk value
         if (!is_array($criteria)) {
             $criteria = array();
+            $pk = static::getMeta('pk');
             foreach (func_get_args() as $i=>$f)
-                $criteria[static::$meta['pk'][$i]] = $f;
-            
+                $criteria[$pk[$i]] = $f;
+
             // Only consult cache for PK lookup, which is assumed if the
             // values are passed as args rather than an array
             if ($cached = ModelInstanceManager::checkCache(get_called_class(),
                     $criteria))
                 return $cached;
         }
-        
+
         return static::objects()->filter($criteria)->one();
     }
 
-    function delete($pk=false) {
+    function delete() {
         $ex = Manager::delete($this);
         try {
             $ex->execute();
@@ -254,10 +299,31 @@ implements \JsonSerializable {
     }
 
     function save($refetch=false) {
+        if ($this->__deleted__)
+            throw new OrmException('Trying to update a deleted object');
+
+        $pk = static::getMeta('pk');
+        $wasnew = $this->__new__;
+
+        // First, if any foreign properties of this object are connected to
+        // another *new* object, then save those objects first and set the
+        // local foreign key field values
+        foreach (static::getMeta('joins') as $prop => $j) {
+            if (isset($this->ht[$prop])
+                && ($foreign = $this->ht[$prop])
+                && $foreign instanceof VerySimpleModel
+                && !in_array($j['local'], $pk)
+                && null === $this->get($j['local'])
+            ) {
+                if ($foreign->__new__ && !$foreign->save())
+                    return false;
+                $this->set($j['local'], $foreign->get($j['fkey'][1]));
+            }
+        }
+
+        // If there's nothing in the model to be saved, then we're done
         if (count($this->__dirty__) === 0)
             return true;
-        elseif ($this->__deleted__)
-            throw new Exception\OrmError('Trying to update a deleted object');
 
         $ex = Manager::save($this);
         try {
@@ -280,10 +346,7 @@ implements \JsonSerializable {
             return false;
         }
 
-        $pk = static::$meta['pk'];
-        $wasnew = $this->__new__;
-
-        if ($this->__new__) {
+        if ($wasnew) {
             // XXX: Ensure AUTO_INCREMENT is set for the field
             if (count($pk) == 1 && !$refetch) {
                 $key = $pk[0];
@@ -300,11 +363,34 @@ implements \JsonSerializable {
         }
         # Refetch row from database
         if ($refetch) {
-            $this->__ht__ = static::objects()->filter($this->getPk())->values()->one();
+            // Preserve non database information such as list relationships
+            // across the refetch
+            $this->__ht__ = static::objects()->filter($this->getPk())->values()->one()
+                + $this->__ht__;
             // TODO: Cache $this object
         }
         if ($wasnew) {
-            $this->__onload();
+            // Attempt to update foreign, unsaved objects with the PK of
+            // this newly created object
+            foreach (static::getMeta('joins') as $prop => $j) {
+                if (isset($this->ht[$prop])
+                    && ($foreign = $this->ht[$prop])
+                    && in_array($j['local'], $pk)
+                ) {
+                    if ($foreign instanceof VerySimpleModel
+                        && null === $foreign->get($j['fkey'][1])
+                    ) {
+                        $foreign->set($j['fkey'][1], $this->get($j['local']));
+                    }
+                    elseif ($foreign instanceof InstrumentedList) {
+                        foreach ($foreign as $item) {
+                            if (null === $item->get($j['fkey'][1]))
+                                $item->set($j['fkey'][1], $this->get($j['local']));
+                        }
+                    }
+                }
+            }
+            $this->__onsave();
         }
         $this->__dirty__ = array();
         return true;
@@ -323,21 +409,21 @@ implements \JsonSerializable {
 
     private function getPk() {
         $pk = array();
-        foreach (static::$meta['pk'] as $f)
+        foreach ($this::getMeta('pk') as $f)
             $pk[$f] = $this->__ht__[$f];
         return $pk;
     }
-    
+
     function __toString() {
         $a = new Util\ArrayObject($this->getPk());
         return sprintf('<%s %s>', get_class($this), $a->join('=',', '));
     }
-    
+
     // ---- JsonSerializable interface ------------------------
     function jsonSerialize() {
         $fields = $this->__ht__;
         foreach (static::$meta['joins'] as $k=>$j) {
-            // For join relationships, drop local ID from the fields 
+            // For join relationships, drop local ID from the fields
             // list. Instead, list the ID as the member of the join unless
             // it is an InstrumentedList or ModelBase instance, in which case
             // use it as is

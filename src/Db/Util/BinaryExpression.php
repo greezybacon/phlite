@@ -5,12 +5,14 @@ namespace Phlite\Db\Util;
 class BinaryExpression extends Expression {
     var $operator;
     var $operands;
-    
+
     static $associative = array(
-        '+' => ['+'],
-        '*' => ['*'],
+        '+' => ['+', '-'],
+        '-' => ['+', '-'],
+        '*' => ['*', '/'],
+        '/' => ['*', '/']
     );
-    
+
     function __construct($operator, $operands) {
         $this->operator = $operator;
         if (is_array($operands))
@@ -28,7 +30,7 @@ class BinaryExpression extends Expression {
                 $O[] = $compiler->input($operand);
         }
         $expr = implode(' '.$this->operator.' ', $O);
-                
+
         // Emit parentheses if left-hand operator is not left associative
         // with this one
         if ($lho && (!isset(self::$associative[$lho]))
@@ -37,13 +39,13 @@ class BinaryExpression extends Expression {
         ) {
             $expr = ' ('.$expr.') ';
         }
-        
+
         if ($alias)
             $expr .= ' AS '.$compiler->quote($alias);
-        
+
         return $expr;
     }
-    
+
     static function __callStatic($op, $operands) {
         static $operators = array(
             'minus' =>  '-',
@@ -55,7 +57,7 @@ class BinaryExpression extends Expression {
         $op = strtolower($op);
         if (isset($operators[$op]))
             return new static($operators[$op], $operatnds);
-            
+
         throw new \InvalidArgumentException('Invalid operator specified');
     }
 }

@@ -8,7 +8,6 @@ implements \Serializable {
     const ANY =     0x0002;
 
     var $constraints;
-    var $flags;
     var $negated = false;
     var $ored = false;
 
@@ -47,27 +46,24 @@ implements \Serializable {
         return $this;
     }
 
-    static function not(array $constraints) {
+    static function not($constraints) {
         return new static($constraints, self::NEGATED);
     }
 
-    static function any(array $constraints) {
+    static function any($constraints) {
         return new static($constraints, self::ANY);
     }
 
+    static function all($constraints) {
+        return new static($constraints);
+    }
+
     function serialize() {
-        return serialize(array(
-            'f' =>
-                ($this->negated ? self::NEGATED : 0)
-              | ($this->ored ? self::ANY : 0),
-            'c' => $this->constraints
-        ));
+        return serialize(array($this->negated, $this->ored, $this->constraints));
+
     }
 
     function unserialize($data) {
-        $data = unserialize($data);
-        $this->constraints = $data['c'];
-        $this->ored = $data['f'] & self::ANY;
-        $this->negated = $data['f'] & self::NEGATED;
+        list($this->negated, $this->ored, $this->constraints) = unserialize($data);
     }
 }

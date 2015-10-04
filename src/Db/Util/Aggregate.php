@@ -30,24 +30,31 @@ extends Func {
 
         // For DISTINCT, require a field specification — not a relationship
         // specification.
-        list($field, $rmodel) = $compiler->getField($this->expr, $model, $options);
-        if ($this->distinct) {
-            $pk = false;
-            foreach ($rmodel::$meta['pk'] as $f) {
-                $pk |= false !== strpos($field, $f);
-            }
-            if (!$pk) {
-                // Try and use the foriegn primary key
-                if (count($rmodel::$meta['pk']) == 1) {
-                    list($field) = $compiler->getField(
-                        $this->expr . '__' . $rmodel::$meta['pk'][0],
-                        $model, $options);
+        $E = $this->expr;
+        if ($E instanceof SqlFunction) {
+            $field = $E->toSql($compiler, $model);
+        }
+        else {
+            list($field, $rmodel) = $compiler->getField($E, $model, $options);
+            if ($this->distinct) {
+                $pk = false;
+                $fpk  = $rmodel::getMeta('pk');
+                foreach ($fpk as $f) {
+                    $pk |= false !== strpos($field, $f);
                 }
-                else {
-                    throw new OrmException(
-                        sprintf('%s :: %s', $rmodel, $field) .
-                        ': DISTINCT aggregate expressions require specification of a single primary key field of the remote model'
-                    );
+                if (!$pk) {
+                    // Try and use the foriegn primary key
+                    if (count($fpk) == 1) {
+                        list($field) = $compiler->getField(
+                            $this->expr . '__' . $fpk[0],
+                            $model, $options);
+                    }
+                    else {
+                        throw new OrmException(
+                            sprintf('%s :: %s', $rmodel, $field) .
+                            ': DISTINCT aggregate expressions require specification of a single primary key field of the remote model'
+                        );
+                    }
                 }
             }
         }

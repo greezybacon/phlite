@@ -9,10 +9,6 @@ use Phlite\Db\Util;
 
 abstract class SqlCompiler {
 
-    // Consts for ::input()
-    const SLOT_JOINS = 1;
-    const SLOT_WHERE = 2;
-
     var $options = array();
     var $joins = array();
     var $aliases = array();
@@ -29,6 +25,63 @@ abstract class SqlCompiler {
         if ($options)
             $this->options = array_merge($this->options, $options);
         $this->conn = $conn;
+        if ($options['subquery'])
+            $this->alias_num += 150;
+    }
+
+    function getParent() {
+        return $this->options['parent'];
+    }
+
+    /**
+     * Split a criteria item into the identifying pieces: path, field, and
+     * operator.
+     */
+    static function splitCriteria($criteria) {
+        static $operators = array(
+            'exact' => 1, 'isnull' => 1,
+            'gt' => 1, 'lt' => 1, 'gte' => 1, 'lte' => 1, 'range' => 1,
+            'contains' => 1, 'like' => 1, 'startswith' => 1, 'endswith' => 1, 'regex' => 1,
+            'in' => 1, 'intersect' => 1,
+            'hasbit' => 1,
+        );
+        $path = explode('__', $criteria);
+        if (!isset($options['table'])) {
+            $field = array_pop($path);
+            if (isset($operators[$field])) {
+                $operator = $field;
+                $field = array_pop($path);
+            }
+        }
+        return array($field, $path, $operator ?: 'exact');
+    }
+
+    /**
+     * Check if the values match given the operator.
+     *
+     * Throws:
+     * OrmException - if $operator is not supported
+     */
+    static function evaluate($record, $field, $check) {
+        static $ops; if (!isset($ops)) { $ops = array(
+            'exact' => function($a, $b) { return is_string($a) ? strcasecmp($a, $b) == 0 : $a == $b; },
+            'isnull' => function($a, $b) { return is_null($a) == $b; },
+            'gt' => function($a, $b) { return $a > $b; },
+            'gte' => function($a, $b) { return $a >= $b; },
+            'lt' => function($a, $b) { return $a < $b; },
+            'lte' => function($a, $b) { return $a <= $b; },
+            'contains' => function($a, $b) { return stripos($a, $b) !== false; },
+            'startswith' => function($a, $b) { return stripos($a, $b) === 0; },
+            'hasbit' => function($a, $b) { return $a & $b == $b; },
+        ); }
+        list($field, $path, $operator) = self::splitCriteria($field);
+        if (!isset($ops[$operator]))
+            throw new OrmException($operator.': Unsupported operator');
+
+        if ($path)
+            $record = $record->getByPath($path);
+        // TODO: Support Q expressions
+        return $ops[$operator]($record->get($field), $check);
     }
 
     /**
@@ -97,55 +150,54 @@ abstract class SqlCompiler {
         // The parts after each of the __ pieces are links to other tables.
         // The last item (after the last __) is allowed to be an operator
         // specifiction.
-        $parts = explode('__', $field);
-        $operator = static::$operators['exact'];
-        if ($parts && !isset($options['table'])) {
-            $field = array_pop($parts);
-            if (array_key_exists($field, static::$operators)) {
-                $operator = static::$operators[$field];
-                $field = array_pop($parts);
-            }
-        }
-
-        $path = array();
-
-        // Determine the alias for the root model table
-        $alias = (isset($this->joins['']))
-            ? $this->joins['']['alias']
-            : $this->quote($model::$meta['table']);
+        list($field, $parts, $op) = static::splitCriteria($field);
+        $operator = static::$operators[$op];
+        $path = '';
+        $rootModel = $model;
 
         // Call pushJoin for each segment in the join path. A new JOIN
         // fragment will need to be emitted and/or cached
-        $self = $this;
-        $push = function($p, $path, $extra=false) use (&$model, $self) {
-            $model::_inspect();
-            if (!($info = $model::$meta['joins'][$p])) {
+        $joins = array();
+        $push = function($p, $model) use (&$joins, &$path) {
+            $J = $model::getMeta('joins');
+            if (!($info = $J[$p])) {
                 throw new Exception\OrmError(sprintf(
                    'Model `%s` does not have a relation called `%s`',
                     $model, $p));
             }
-            $crumb = implode('__', $path);
-            $path[] = $p;
-            $tip = implode('__', $path);
-            $alias = $self->pushJoin($crumb, $tip, $model, $info, $extra);
+            $crumb = $path;
+            $path = ($path) ? "{$path}__{$p}" : $p;
+            $joins[] = array($crumb, $path, $model, $info);
             // Roll to foreign model
-            foreach ($info['constraint'] as $local => $foreign) {
-                list($model, $f) = explode('.', $foreign);
-                if (class_exists($model))
-                    break;
-            }
-            return array($alias, $f);
+            return $info['fkey'];
         };
 
         foreach ($parts as $i=>$p) {
-            list($alias) = $push($p, $path, @$options['constraint']);
-            $path[] = $p;
+            list($model) = $push($p, $model);
         }
 
         // If comparing a relationship, join the foreign table
         // This is a comparison with a relationship — use the foreign key
-        if (isset($model::$meta['joins'][$field])) {
-            list($alias, $field) = $push($field, $path, @$options['constraint']);
+        $J = $model::getMeta('joins');
+        if (isset($J[$field])) {
+            list($model, $field) = $push($field, $model);
+        }
+
+        // Apply the joins list to $this->pushJoin
+        $last = count($joins) - 1;
+        $constraint = false;
+        foreach ($joins as $i=>$A) {
+            // Add the conststraint as the last arg to the last join
+            if ($i == $last)
+                $constraint = $options['constraint'];
+            $alias = $this->pushJoin($A[0], $A[1], $A[2], $A[3], $constraint);
+        }
+
+        if (!isset($alias)) {
+            // Determine the alias for the root model table
+            $alias = (isset($this->joins['']))
+                ? $this->joins['']['alias']
+                : $this->quote($rootModel::getMeta('table'));
         }
 
         if (isset($options['table']) && $options['table'])
@@ -194,15 +246,15 @@ abstract class SqlCompiler {
         // TODO: Always use a table alias. This will further help with
         // coordination between the data returned from the database (where
         // table alias is available) and the corresponding data.
-        
+
         // Correlate path and alias immediately so that they could be
         // referenced in the ::compileJoin method if necessary.
         $T = array('alias' => $alias);
-        $this->joins[$path] = &$T;
-        $T['sql'] = $this->compileJoin($tip, $model, $alias, $info, $constraint);
+        $this->joins[$path] = $T;
+        $this->joins[$path]['sql'] = $this->compileJoin($tip, $model, $alias, $info, $constraint);
         return $alias;
     }
-    
+
     abstract function compileJoin($tip, $model, $alias, $info, $extra=false);
 
     /**
@@ -257,6 +309,8 @@ abstract class SqlCompiler {
                 }
                 if ($value === null)
                     $filter[] = sprintf('%s IS NULL', $field);
+                elseif ($value instanceof Util\Field)
+                    $filter[] = sprintf($op, $field, $value->toSql($this, $model));
                 // Allow operators to be callable rather than sprintf
                 // strings
                 elseif (is_callable($op))
@@ -281,32 +335,25 @@ abstract class SqlCompiler {
         }
         return $constraints;
     }
-    
+
     /**
      * input
      *
-     * Generate a parameterized input for a database query. Input value is
-     * received by reference to avoid copying.
+     * Generate a parameterized input for a database query.
      *
      * Parameters:
      * $what - (mixed) value to be sent to the database. No escaping is
      *      necessary. Pass a raw value here.
-     * $slot - (int) clause location of the input in compiled SQL statement.
-     *      Currently, SLOT_JOINS and SLOT_WHERE is supported. SLOT_JOINS
-     *      inputs are inserted ahead of the SLOT_WHERE inputs as the joins
-     *      come logically before the where claused in the finalized
-     *      statement.
      * $model - (Class : ModelBase) model used to derive expressions from,
      *      in the event that $what is an Expression.
      *
      * Returns:
-     * (string) token to be placed into the compiled SQL statement. For
-     * MySQL, this is always the string '?'. Depends on the actual backend
-     * implementation.
+     * (string) token to be placed into the compiled SQL statement. This
+     * is a colon followed by a number
      */
-    function input($what, $slot=false, $model=false) {
+    function input($what, $model=false) {
         if ($what instanceof Model\QuerySet) {
-            $q = $what->getQuery(array('nosort'=>true));
+            $q = $what->getQuery(array('nosort'=>!($what->limit || $what->offset)));
             $this->params = array_merge($this->params, $q->params);
             return $q->sql;
         }
@@ -317,10 +364,10 @@ abstract class SqlCompiler {
             return 'NULL';
         }
         else {
-            return $this->addParam($what, $slot);
+            return $this->addParam($what);
         }
     }
-    
+
     /**
      * Add a parameter to the internal parameters list ($this->params).
      * This is the part of ::input() that is specific to the database backend
@@ -341,9 +388,20 @@ abstract class SqlCompiler {
 
     function getJoins($queryset) {
         $sql = '';
-        foreach ($this->joins as $j)
-            if (isset($j['sql']))
-                $sql .= $j['sql'];
+        foreach ($this->joins as $path => $j) {
+            if (!$j['sql'])
+                continue;
+            list($base, $constraints) = $j['sql'];
+            // Add in path-specific constraints, if any
+            if (isset($queryset->path_constraints[$path])) {
+                foreach ($queryset->path_constraints[$path] as $Q) {
+                    $constraints[] = $this->compileQ($Q, $queryset->model);
+                }
+            }
+            $sql .= $base;
+            if ($constraints)
+                $sql .= ' ON ('.implode(' AND ', $constraints).')';
+        }
         // Add extra items from QuerySet
         if (isset($queryset->extra['tables'])) {
             foreach ($queryset->extra['tables'] as $S) {
@@ -358,14 +416,14 @@ abstract class SqlCompiler {
         }
         return $sql;
     }
-    
+
     /**
      * quote
      *
      * Quote a field or table for usage in a statement.
      */
     abstract function quote($what);
-    
+
     /**
      * escape
      *
@@ -380,7 +438,7 @@ abstract class SqlCompiler {
         $this->alias_num++;
         return $alias;
     }
-    
+
     // Statement compilations
     abstract function compileCount(Model\QuerySet $qs);
     abstract function compileSelect(Model\QuerySet $qs);
@@ -390,7 +448,7 @@ abstract class SqlCompiler {
     abstract function compileBulkDelete(Model\QuerySet $queryset);
     abstract function compileBulkUpdate(Model\QuerySet $queryset, array $what);
     abstract function inspectTable($table);
-    
+
     // XXX: Move this to another interface to include complete support for
     //      model migrations
     abstract function compileCreate($modelClass);

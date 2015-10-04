@@ -20,6 +20,7 @@ class Compiler extends SqlCompiler {
         'contains' => array('self', '__contains'),
         'startswith' => array('self', '__startswith'),
         'endswith' => array('self', '__endswith'),
+        'regex' => array('self', '__regex'),
         'gt' => '%1$s > %2$s',
         'lt' => '%1$s < %2$s',
         'gte' => '%1$s >= %2$s',
@@ -36,7 +37,7 @@ class Compiler extends SqlCompiler {
     function like_escape($what, $e='\\') {
         return str_replace(array($e, '%', '_'), array($e.$e, $e.'%', $e.'_'), $what);
     }
-    
+
     function __contains($a, $b) {
         # {%a} like %{$b}%
         # Escape $b
@@ -55,12 +56,31 @@ class Compiler extends SqlCompiler {
     function __in($a, $b) {
         if (is_array($b)) {
             $vals = array_map(array($this, 'input'), $b);
-            $b = implode(', ', $vals);
+            $b = '('.implode(', ', $vals).')';
+        }
+        // MySQL is almost always faster with a join. Use one if possible
+        // MySQL doesn't support LIMIT or OFFSET in subqueries. Instead, add
+        // the query as a JOIN and add the join constraint into the WHERE
+        // clause.
+        elseif ($b instanceof QuerySet
+            && ($b->isWindowed() || $b->countSelectFields() > 1 || $b->chain)
+        ) {
+            $f1 = $b->values[0];
+            $view = $b->asView();
+            $alias = $this->pushJoin($view, $a, $view, array('constraint'=>array()));
+            return sprintf('%s = %s.%s', $a, $alias, $this->quote($f1));
         }
         else {
             $b = $this->input($b);
         }
-        return sprintf('%s IN (%s)', $a, $b);
+        return sprintf('%s IN %s', $a, $b);
+    }
+
+    function __regex($a, $b) {
+        // Strip slashes and options
+        if ($b[0] == '/')
+            $b = preg_replace('`/[^/]*$`', '', substr($b, 1));
+        return sprintf('%s REGEXP %s', $a, $this->input($b));
     }
 
     function __isnull($a, $b) {
@@ -68,7 +88,7 @@ class Compiler extends SqlCompiler {
             ? sprintf('%s IS NULL', $a)
             : sprintf('%s IS NOT NULL', $a);
     }
-    
+
     function __find_in_set($a, $b) {
         if (is_array($b)) {
             $sql = array();
@@ -81,9 +101,10 @@ class Compiler extends SqlCompiler {
         }
         return sprintf('FIND_IN_SET(%s, %s)', $b, $a);
     }
-    
+
     function __between($a, $b) {
         // FIXME: Crash if b not an array of exactly two items
+        $b = array_map(array($this, 'input'), $b);
         return sprintf('%1$s BETWEEN %2$s AND %3$s', $a, $b[0], $b[1]);
     }
 
@@ -95,23 +116,23 @@ class Compiler extends SqlCompiler {
         if (isset($this->joins[$tip]))
             $table = $this->joins[$tip]['alias'];
         else
-            $table = $this->quote($model::$meta['table']);
+            $table = $this->quote($model::getMeta('table'));
         foreach ($info['constraint'] as $local => $foreign) {
-            list($rmodel, $right) = explode('.', $foreign);
+            list($rmodel, $right) = $foreign;
             // Support a constant constraint with
             // "'constant'" => "Model.field_name"
             if ($local[0] == "'") {
                 $constraints[] = sprintf("%s.%s = %s",
                     $alias, $this->quote($right),
-                    $this->input(trim($local, '\'"'), self::SLOT_JOINS)
+                    $this->input(trim($local, '\'"'))
                 );
             }
             // Support local constraint
             // field_name => "'constant'"
-            elseif ($foreign[0] == "'" && !$right) {
+            elseif ($rmodel[0] == "'" && !$right) {
                 $constraints[] = sprintf("%s.%s = %s",
                     $table, $this->quote($local),
-                    $this->input(trim($foreign, '\'"'), self::SLOT_JOINS)
+                    $this->input(trim($rmodel, '\'"'))
                 );
             }
             else {
@@ -123,33 +144,28 @@ class Compiler extends SqlCompiler {
         }
         // Support extra join constraints
         if ($extra instanceof Util\Q) {
-            $constraints[] = $this->compileQ($extra, $model, self::SLOT_JOINS);
+            $constraints[] = $this->compileQ($extra, $model);
         }
+        if (!isset($rmodel))
+            $rmodel = $model;
         // Support inline views
-        $table = (@$rmodel::$meta['view'])
+        $table = ($rmodel::getMeta('view'))
+            // XXX: Support parameters from the nested query
             ? $rmodel::getQuery($this)
-            : $this->quote($rmodel::$meta['table']);
-        return $join.$table
-            .' '.$alias.' ON ('.implode(' AND ', $constraints).')';
+            : $this->quote($rmodel::getMeta('table'));
+        $base = "{$join}{$table} {$alias}";
+        return array($base, $constraints);
     }
-    
+
     function addParam($what, $slot=false) {
-        switch ($slot) {
-        case self::SLOT_JOINS:
-            // This should be inserted before the WHERE inputs
-            array_splice($this->params, $this->input_join_count++, 0,
-                array($what));
-            break;
-        default:
-            $this->params[] = $what;
-        }
-        return '?';
+        $this->params[] = $what;
+        return ':'.(count($this->params));
     }
 
     function quote($what) {
         return "`$what`";
     }
-    
+
     function escape($what, $quote=true) {
         // Use a connection to do this
     }
@@ -173,7 +189,7 @@ class Compiler extends SqlCompiler {
         }
         if (isset($queryset->extra['where'])) {
             foreach ($queryset->extra['where'] as $S) {
-                $where[] = '('.$S.')';
+                $where[] = "($S)";
             }
         }
         if ($where)
@@ -182,7 +198,7 @@ class Compiler extends SqlCompiler {
             $having = ' HAVING '.implode(' AND ', $having);
         return array($where ?: '', $having ?: '');
     }
-    
+
     protected function getLimit($queryset) {
         $sql = '';
         if ($queryset->limit)
@@ -193,29 +209,26 @@ class Compiler extends SqlCompiler {
     }
 
     function compileCount(QuerySet $queryset) {
-        $model = $queryset->model;
-        $table = $model::$meta['table'];
-        list($where, $having) = $this->getWhereHavingClause($queryset);
-        $joins = $this->getJoins($queryset);
-        $meat = $this->quote($table).$joins.$where;
-        $sql = "SELECT COUNT(*) as count FROM ";
-        if ($limit = $this->getLimit($queryset)) {
-            // Use subquery to apply the limit and offset
-            $sql .= "(SELECT 1 FROM {$meat}{$limit}) A1";
-        }
-        else {
-            $sql .= $meat;
-        }        
-        return new Statement($sql, $this->params);
+        $q = clone $queryset;
+        // Drop extra fields from the queryset
+        $q->related = $q->anotations = false;
+        $model = $q->model;
+        $q->values = $model::getMeta('pk');
+        $stmt = $q->getQuery(array('nosort' => true));
+        $stmt->sql = 'SELECT COUNT(*) FROM ('.$stmt->sql.') __';
+       return $stmt;
     }
-    
+
     function getOrderByFields(QuerySet $queryset) {
         $orders = array();
         if (!($columns = $queryset->getSortFields()))
             return $orders;
-        
+
         foreach ($columns as $sort) {
             $dir = 'ASC';
+            if (is_array($sort)) {
+                list($sort, $dir) = $sort;
+            }
             if ($sort instanceof Util\Expression) {
                 $field = $sort->toSql($this, $model);
             }
@@ -224,23 +237,29 @@ class Compiler extends SqlCompiler {
                     $dir = 'DESC';
                     $sort = substr($sort, 1);
                 }
-                list($field) = $this->getField($sort, $queryset->model);
+                // If the field is already an annotation, then don't
+                // compile the annotation again below. It's included in
+                // the select clause, which is sufficient
+                if (isset($this->annotations[$sort]))
+                    $field = $this->quote($sort);
+                else
+                    list($field) = $this->getField($sort, $model);
             }
-            // TODO: Throw exception if $field can be indentified as
-            //       invalid
             if ($field instanceof Util\Expression)
                 $field = $field->toSql($this, $model);
+            // TODO: Throw exception if $field can be indentified as
+            //       invalid
 
-            $orders[] = $field.' '.$dir;
+            $orders[] = "{$field} {$dir}";
         }
         return $orders;
     }
 
     function compileSelect(QuerySet $queryset) {
         $model = $queryset->model;
-        
+
         // Use an alias for the root model table
-        $table = $model::$meta['table'];
+        $table = $model::getMeta('table');
         $this->joins[''] = array('alias' => ($rootAlias = $this->nextAlias()));
 
         // Compile the WHERE clause
@@ -255,22 +274,20 @@ class Compiler extends SqlCompiler {
         }
 
         // Compile the field listing
-        $fields = array();
-        $table = $this->quote($table).' '.$rootAlias;
-        $group_by = $fieldMap = array();
-        
+        $fields = $group_by = $fieldMap = array();
+        $table = $this->quote($model::getMeta('table')).' '.$rootAlias;
+
         // Handle fields in the recordset (including those in related tables)
         if ($queryset->related) {
             $count = 0;
             $theseFields = array();
             $defer = $queryset->defer ?: array();
             // Add local fields first
-            $model::_inspect();
-            foreach ($model::$meta['fields'] as $f) {
+            foreach ($model::getMeta('fields') as $f) {
                 // Handle deferreds
                 if (isset($defer[$f]))
                     continue;
-                $fields[$rootAlias . '.' . $this->quote($f)] = true;                
+                $fields[$rootAlias . '.' . $this->quote($f)] = true;
                 $theseFields[] = $f;
             }
             $fieldMap[] = array($theseFields, $model);
@@ -288,8 +305,7 @@ class Compiler extends SqlCompiler {
                     $theseFields = array();
                     list($alias, $fmodel) = $this->getField($full_path, $model,
                         array('table'=>true, 'model'=>true));
-                    $fmodel::_inspect();
-                    foreach ($fmodel::$meta['fields'] as $f) {
+                    foreach ($fmodel::getMeta('fields') as $f) {
                         // Handle deferreds
                         if (isset($defer[$sr . '__' . $f]))
                             continue;
@@ -319,21 +335,20 @@ class Compiler extends SqlCompiler {
                 }
                 // If there are annotations, add in these fields to the
                 // GROUP BY clause
-                if ($queryset->annotations)
+                if ($queryset->annotations && !$queryset->distinct)
                     $group_by[] = $unaliased;
             }
         }
         // Simple selection from one table, with deferred fields
         elseif ($queryset->defer) {
-            $model::_inspect();
-            foreach ($model::$meta['fields'] as $f) {
+            foreach ($model::getMeta('fields') as $f) {
                 if (isset($queryset->defer[$f]))
                     continue;
                 $fields[$rootAlias .'.'. $this->quote($f)] = true;
             }
         }
         elseif (!$queryset->aggregated) {
-            $fields[$rootAlias.'.*'] = true;   
+            $fields[$rootAlias.'.*'] = true;
         }
         $fields = array_keys($fields);
 
@@ -345,7 +360,7 @@ class Compiler extends SqlCompiler {
                 $T = $A->toSql($this, $model, $alias);
                 if ($fieldMap) {
                     array_splice($fields, count($fieldMap[0][0]), 0, array($T));
-                    $fieldMap[0][0][] = $A->getAlias();
+                    $fieldMap[0][0][] = $alias;
                 }
                 else {
                     // No field map — just add to end of field list
@@ -354,31 +369,56 @@ class Compiler extends SqlCompiler {
             }
             // If no group by has been set yet, use the root model pk
             if (!$group_by && !$queryset->aggregated) {
-                foreach ($model::$meta['pk'] as $pk)
+                foreach ($model::getMeta('pk') as $pk)
                     $group_by[] = $rootAlias .'.'. $pk;
             }
         }
-        
+
         // Add in SELECT extras
         if (isset($queryset->extra['select'])) {
             foreach ($queryset->extra['select'] as $name=>$expr) {
                 if ($expr instanceof Util\Expression)
                     $expr = $expr->toSql($this, false, $name);
+                else
+                    $expr = sprintf('%s AS %s', $expr, $this->quote($name));
                 $fields[] = $expr;
             }
         }
-        
+
         // Consider DISTINCT criteria
         if (isset($queryset->distinct)) {
             foreach ($queryset->distinct as $d)
                 list($group_by[]) = $this->getField($d, $model);
         }
         $joins = $this->getJoins($queryset);
-        $group_by = ($group_by) ? ' GROUP BY '.implode(',', $group_by) : '';
+        $group_by = $group_by ? ' GROUP BY '.implode(', ', $group_by) : '';
         $limit = $this->getLimit($queryset);
-        
+
         $sql = 'SELECT '.implode(', ', $fields).' FROM '
             .$table.$joins.$where.$group_by.$having.$sort.$limit;
+
+        // UNIONS
+        if ($queryset->chain) {
+            // If the main query is sorted, it will need parentheses
+            if ($parens = (bool) $sort)
+                $sql = "($sql)";
+            foreach ($queryset->chain as $qs) {
+                list($qs, $all) = $qs;
+                $q = $qs->getQuery(array('nosort' => true));
+                // Rewrite the parameter numbers so they fit the parameter numbers
+                // of the current parameters of the $compiler
+                $self = $this;
+                $S = preg_replace_callback("/:(\d+)/",
+                function($m) use ($self, $q) {
+                    $self->params[] = $q->params[$m[1]-1];
+                    return ':'.count($self->params);
+                }, $q->sql);
+                // Wrap unions in parentheses if they are windowed or sorted
+                if ($parens || $qs->isWindowed() || count($qs->getSortFields()))
+                    $S = "($S)";
+                $sql .= ' UNION '.($all ? 'ALL ' : '').$S;
+            }
+        }
 
         switch ($queryset->lock) {
         case QuerySet::LOCK_EXCLUSIVE:
@@ -404,8 +444,8 @@ class Compiler extends SqlCompiler {
     }
 
     function compileUpdate(ModelBase $model) {
-        $pk = $model::$meta['pk'];
-        $sql = 'UPDATE '.$this->quote($model::$meta['table']);
+        $pk = $model::getMeta('pk');
+        $sql = 'UPDATE '.$this->quote($model::getMeta('table'));
         $sql .= $this->__compileUpdateSet($model, $pk);
         // Support PK updates
         $criteria = array();
@@ -419,15 +459,15 @@ class Compiler extends SqlCompiler {
     }
 
     function compileInsert(ModelBase $model) {
-        $pk = $model::$meta['pk'];
-        $sql = 'INSERT INTO '.$this->quote($model::$meta['table']);
+        $pk = $model::getMeta('pk');
+        $sql = 'INSERT INTO '.$this->quote($model::getMeta('table'));
         $sql .= $this->__compileUpdateSet($model, $pk);
 
         return new Statement($sql, $this->params);
     }
 
     function compileDelete(ModelBase $model) {
-        $table = $model::$meta['table'];
+        $table = $model::getMeta('table');
 
         $where = ' WHERE '.implode(' AND ',
             $this->compileConstraints(array(new Util\Q($model->pk)), $model));
@@ -437,7 +477,7 @@ class Compiler extends SqlCompiler {
 
     function compileBulkDelete(QuerySet $queryset) {
         $model = $queryset->model;
-        $table = $model::$meta['table'];
+        $table = $model::getMeta('table');
         list($where, $having) = $this->getWhereHavingClause($queryset);
         $joins = $this->getJoins($queryset);
         $sql = 'DELETE '.$this->quote($table).'.* FROM '
@@ -447,11 +487,11 @@ class Compiler extends SqlCompiler {
 
     function compileBulkUpdate(QuerySet $queryset, array $what) {
         $model = $queryset->model;
-        $table = $model::$meta['table'];
+        $table = $model::getMeta('table');
         $set = array();
         foreach ($what as $field=>$value)
             $set[] = sprintf('%s = %s', $this->quote($field),
-                $this->input($value, false, $model));
+                $this->input($value, $model));
         $set = implode(', ', $set);
         list($where, $having) = $this->getWhereHavingClause($queryset);
         $joins = $this->getJoins($queryset);
@@ -471,9 +511,9 @@ class Compiler extends SqlCompiler {
         $sql = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS '
             .'WHERE TABLE_NAME = \''.$table.'\' AND TABLE_SCHEMA = DATABASE() '
             .'ORDER BY ORDINAL_POSITION';
-        
+
         // XXX: This can't be here
-        
+
         $ex = new MysqliExecutor(new Statement($sql, array()), $this->conn);
         $columns = array();
         while (list($column) = $ex->fetchRow()) {
@@ -481,7 +521,7 @@ class Compiler extends SqlCompiler {
         }
         return $cache[$table] = $columns;
     }
-    
+
     function compileCreate($modelClass) {
         // TODO:
     }

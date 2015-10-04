@@ -12,11 +12,11 @@ implements SqlExecutor {
 
     var $stmt;
     var $fields = array();
-    
+
     var $backend;
     var $conn;
     var $res;   // Server resource / cursor
-    
+
     // Timing
     var $time_prepare;
     var $time_fetch;
@@ -28,7 +28,7 @@ implements SqlExecutor {
     function __destruct() {
         $this->close();
     }
-    
+
     // Array of [count, model] values representing which fields in the
     // result set go with witch model.  Useful for handling select_related
     // queries
@@ -40,28 +40,40 @@ implements SqlExecutor {
         // Lazy connect to the database
         if (!isset($this->conn))
             $this->conn = $this->backend->getConnection();
-        
+
         // TODO: Detect server/client abort, pause and attempt reconnection
-        
+
         $start = microtime(true);
-        if (!($this->res = $this->conn->prepare($this->stmt->sql)))
+        list($sql, $params) = $this->fixupParams($this->stmt);
+        if (!($this->res = $this->conn->prepare($sql)))
             throw new Exception\InconsistentModel(
                 'Unable to prepare query: '.$this->conn->error
-                .': '.$this->stmt->sql);
-        
+                .': '.$sql);
+
         // TODO: Implement option to drop parameters
-        
-        if ($this->stmt->hasParameters())
-            $this->_bind($this->stmt, $this->res);
+
+        if (count($params))
+            $this->_bind($params, $this->res);
         if (!$this->res->execute() || !$this->res->store_result()) {
             throw new Exception\DbError('Unable to execute query: ' . $this->res->error);
         }
         $this->_setup_output();
-        
+
         $this->time_prepare = microtime(true) - $start;
         return true;
     }
-    
+
+    function fixupParams() {
+        $self = $this;
+        $params = array();
+        $sql = preg_replace_callback("/:(\d+)(?=([^']*'[^']*')*[^']*$)/",
+        function($m) use ($self, &$params) {
+            $params[] = $self->stmt->params[$m[1]-1];
+            return '?';
+        }, $this->stmt->sql);
+        return array($sql, $params);
+    }
+
     /**
      * Remove the parameters from the string and replace them with escaped
      * values. This is reportedly faster for MySQL and equally as safe.
@@ -74,12 +86,11 @@ implements SqlExecutor {
             $q = $self->conn->real_escape($i);
             if (is_string($i))
                 return "'$i'";
-            return $i;            
+            return $i;
         });
     }
 
-    function _bind(Statement $stmt, $res) {
-        $params = $stmt->getParameters();
+    function _bind($params, $res) {
         if (count($params) != $res->param_count)
             throw new Exception\OrmError('Parameter count does not match query');
 
@@ -96,7 +107,11 @@ implements SqlExecutor {
                 // TODO: Detect database timezone and convert accordingly
                 // for a non-naive DateTime instance
                 $types .= 's';
-                $p = $p->format('Y-m-d h:i:s');
+                $p = $p->format('Y-m-d H:i:s');
+            }
+            elseif (is_object($p)) {
+                $types .= 's';
+                $p = (string) $p;
             }
             // FIXME: Emit error if param is null
             $ps[] = &$p;
@@ -173,7 +188,7 @@ implements SqlExecutor {
     function close() {
         if (!$this->res)
             return;
-        
+
         $this->time_fetch = microtime(true) - $this->time_prepare;
         $total = $this->time_prepare + $this->time_fetch;
         $this->stmt->log(['time'=>$total, 'fetch'=>$this->time_fetch, 'prepare'=>$this->time_prepare]);

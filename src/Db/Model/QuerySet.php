@@ -11,20 +11,26 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
     var $model;
 
     var $constraints = array();
+    var $path_constraints = array();
     var $ordering = array();
     var $limit = false;
     var $offset = 0;
     var $related = array();
     var $values = array();
     var $defer = array();
+    var $aggregated = false;
     var $annotations = array();
     var $lock = false;
     var $extra = array();
     var $distinct = array();
-    var $aggregated = false;
+    var $chain = array();
+    var $options = array();
 
     const LOCK_EXCLUSIVE = 1;
     const LOCK_SHARED = 2;
+
+    const ASC = 'ASC';
+    const DESC = 'DESC';
 
     var $iterator = 'Phlite\Db\Model\ModelInstanceManager';
 
@@ -50,22 +56,82 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         return $this;
     }
 
+    /**
+     * Add a path constraint for the query. This is different from ::filter
+     * in that the constraint is added to a join clause which is normally
+     * built from the model meta data. The ::filter() method on the other
+     * hand adds the constraint to the where clause. This is generally useful
+     * for aggregate queries and left join queries where multiple rows might
+     * match a filter in the where clause and would produce incorrect results.
+     *
+     * Example:
+     * Find users with personal email hosted with gmail.
+     * >>> $Q = User::objects();
+     * >>> $Q->constrain(['user__emails' => new Q(['type' => 'personal']))
+     * >>> $Q->filter(['user__emails__address__contains' => '@gmail.com'])
+     */
+    function constrain() {
+        foreach (func_get_args() as $join=>$I) {
+            foreach ($I as $path => $Q) {
+                // TODO: Consider ensure / auto-adding $path to all paths
+                // listed in $Q
+                if (!is_array($Q) && !$Q instanceof Q) {
+                    // ->constrain(array('field__path__op' => val));
+                    $Q = array($path => $Q);
+                    list(, $path) = SqlCompiler::splitCriteria($path);
+                    $path = implode('__', $path);
+                }
+                $this->path_constraints[$path][] = $Q instanceof Q ? $Q : Q::all($Q);
+            }
+        }
+        return $this;
+    }
+
     function defer() {
         foreach (func_get_args() as $f)
             $this->defer[$f] = true;
         return $this;
     }
 
-    function order_by() {
-        $this->ordering = array_merge($this->ordering, func_get_args());
+    function order_by($order, $direction=false) {
+        if ($order === false)
+            return $this->options(array('nosort' => true));
+
+        $args = func_get_args();
+        if (in_array($direction, array(self::ASC, self::DESC))) {
+            $args = array($args[0]);
+        }
+        else
+            $direction = false;
+
+        $new = is_array($order) ?  $order : $args;
+        if ($direction) {
+            foreach ($new as $i=>$x) {
+                $new[$i] = array($x, $direction);
+            }
+        }
+        $this->ordering = array_merge($this->ordering, $new);
         return $this;
     }
-    
+
+    function options($options) {
+        $this->options = array_merge($this->options, $options);
+        return $this;
+    }
+
     function getSortFields() {
         $ordering = $this->ordering;
         if (isset($this->extra['order_by']))
             $ordering = array_merge($ordering, $this->extra['order_by']);
         return $ordering;
+    }
+
+    function countSelectFields() {
+        $count = count($this->values) + count($this->annotations);
+        if (isset($this->extra['select']))
+            foreach (@$this->extra['select'] as $S)
+                $count += count($S);
+        return $count;
     }
 
     function for_update() {
@@ -86,11 +152,15 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         return $this;
     }
 
+    function isWindowed() {
+        return $this->limit || $this->offset;
+    }
+
     function select_related() {
         $this->related = array_merge($this->related, func_get_args());
         return $this;
     }
-    
+
     function extra(array $extra) {
         foreach ($extra as $section=>$info) {
             $this->extra[$section] = array_merge($this->extra[$section] ?: array(), $info);
@@ -101,6 +171,12 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
     function distinct() {
         foreach (func_get_args() as $D)
             $this->distinct[] = $D;
+        return $this;
+    }
+
+    function models() {
+        $this->iterator = $this->iterator;
+        $this->values = $this->related = array();
         return $this;
     }
 
@@ -128,8 +204,12 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         return $this;
     }
 
+    function copy() {
+        return clone $this;
+    }
+
     function all() {
-        return $this->getIterator()->asArray();
+        return $this->getIterator();
     }
 
     function first() {
@@ -156,7 +236,6 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         if (count($list) == 0)
             throw new Exception\DoesNotExist();
         elseif (count($list) > 1)
-            // TODO: Throw error if more than one result from database
             throw new Exception\NotUnique('One object was expected; however '
                 .'multiple objects in the database matched the query. '
                 .sprintf('In fact, there are %d matching objects.', count($list))
@@ -192,6 +271,20 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         $exec = $connection->execute($stmt);
         $row = $exec->fetchRow();
         return $this->_count = $row[0];
+    }
+
+    function toSql($compiler, $model, $alias=false) {
+        // FIXME: Force root model of the compiler to $model
+        $exec = $this->getQuery(array('compiler' => get_class($compiler),
+             'parent' => $compiler, 'subquery' => true));
+        // Rewrite the parameter numbers so they fit the parameter numbers
+        // of the current parameters of the $compiler
+        $sql = preg_replace_callback("/:(\d+)/",
+        function($m) use ($compiler, $exec) {
+            $compiler->params[] = $exec->params[$m[1]-1];
+            return ':'.count($compiler->params);
+        }, $exec->sql);
+        return "({$sql})".($alias ? " AS {$alias}" : '');
     }
 
     /**
@@ -231,15 +324,29 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         }
         return $this;
     }
-    
-    function aggregate() {
-        $this->aggregated = true;
+
+    function aggregate($annotations) {
+        // Aggregate works like annotate, except that it sets up values
+        // fetching which will disable model creation
+        $this->annotate($annotations);
         $this->values();
-        foreach (func_get_args() as $D)
-            $this->annotate($D);
+        // Disable other fields from being fetched
+        $this->aggregated = true;
+        $this->related = false;
         return $this;
     }
-    
+
+    function union(QuerySet $other, $all=true) {
+        // Values and values_list _must_ match for this to work
+        if ($this->countSelectFields() != $other->countSelectFields())
+            throw new Exception\OrmError('Union queries must have matching values counts');
+
+        // TODO: Clear OFFSET and LIMIT in the $other query
+
+        $this->chain[] = array($other, $all);
+        return $this;
+    }
+
     protected function getCompiler() {
         $connection = Manager::getConnection($this->model);
         return $connection->getCompiler();
@@ -301,22 +408,52 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         // Load defaults from model
         $model = $this->model;
         $model::_inspect();
-        
+
         $query = clone $this;
+        $options += $this->options;
         // Be careful not to make local modifications based on model meta
         // compilation preferences
-        if (!$query->ordering && isset($model::$meta['ordering']))
+        if ($options['nosort'])
+            $query->ordering = array();
+        elseif (!$query->ordering && $model::getMeta('ordering'))
             $query->ordering = $model::$meta['ordering'];
-        if (!$query->related && !$query->values && !$query->aggregated && $model::$meta['select_related'])
-            $query->related = $model::$meta['select_related'];
-        if (!$query->defer && $model::$meta['defer'])
-            $query->defer = $model::$meta['defer'];
-        if (!$this->ordering && isset($model::$meta['ordering']))
-            $this->ordering = $model::$meta['ordering'];
-        
+        if (false !== $query->related && !$query->values && $model::getMeta('select_related'))
+            $query->related = $model::getMeta('select_related');
+        if (!$query->defer && $model::getMeta('defer'))
+            $query->defer = $model::getMeta('defer');
+
+        $class = $options['compiler'] ?: $this->compiler;
         $connection = Manager::getConnection($model);
         $compiler = $connection->getCompiler();
         return $this->query = $compiler->compileSelect($query);
+    }
+
+    /**
+     * Fetch a model class which can be used to render the QuerySet as a
+     * subquery to be used as a JOIN.
+     */
+    function asView() {
+        $unique = spl_object_hash($this);
+        $classname = "QueryView{$unique}";
+        $class = <<<EOF
+class {$classname} extends VerySimpleModel {
+    static \$meta = array(
+        'view' => true,
+    );
+    static \$queryset;
+
+    static function getQuery(\$compiler) {
+        return ' ('.static::\$queryset->getQuery().') ';
+    }
+
+    static function getSqlAddParams(\$compiler) {
+        return static::\$queryset->toSql(\$compiler, self::\$queryset->model);
+    }
+}
+EOF;
+        eval($class); // Ugh
+        $classname::$queryset = $this;
+        return $classname;
     }
 
     function serialize() {
@@ -325,6 +462,7 @@ implements \IteratorAggregate, \ArrayAccess, \Serializable, \Countable {
         unset($info['limit']);
         unset($info['offset']);
         unset($info['_iterator']);
+        unset($info['_count']);
         return serialize($info);
     }
 
