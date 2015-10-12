@@ -15,14 +15,17 @@ implements \JsonSerializable {
         'pk' => false
     );
 
-    var $__ht__;
+    var $__ht__ = array();
     var $__dirty__ = array();
     var $__new__ = false;
     var $__deleted__ = false;
     var $__deferred__ = array();
 
-    function __construct(array $row) {
-        $this->__ht__ = $row;
+    function __construct(array $ht=array()) {
+        $this->__new__ = true;
+        foreach ($ht as $field=>$value)
+            if (!is_array($value))
+                $i->set($field, $value);
     }
 
     function get($field, $default=false) {
@@ -283,19 +286,12 @@ implements \JsonSerializable {
     }
 
     function delete() {
-        $ex = Manager::delete($this);
-        try {
-            $ex->execute();
-            if ($ex->affected_rows() != 1)
-                return false;
-
-            $this->__deleted__ = true;
-            Signal::send('model.deleted', $this);
-        }
-        catch (Exception\DbError $e) {
-            return false;
-        }
-        return true;
+        return Manager::delete($this, function($ex) {
+            if ($ex->affected_rows() == 1) {
+                $this->__deleted__ = true;
+                Signal::send('model.deleted', $this);
+            }
+        });
     }
 
     function save($refetch=false) {
@@ -303,7 +299,6 @@ implements \JsonSerializable {
             throw new OrmException('Trying to update a deleted object');
 
         $pk = static::getMeta('pk');
-        $wasnew = $this->__new__;
 
         // First, if any foreign properties of this object are connected to
         // another *new* object, then save those objects first and set the
@@ -325,25 +320,32 @@ implements \JsonSerializable {
         if (count($this->__dirty__) === 0)
             return true;
 
-        $ex = Manager::save($this);
-        try {
-            $ex->execute();
-            if ($ex->affected_rows() != 1) {
-                // This doesn't really signify an error. It just means that
-                // the database believes that the row did not change. For
-                // inserts though, it's a deal breaker
-                if ($this->__new__) {
-                    return false;
-                }
-                else {
-                    // No need to reload the record if requested — the
-                    // database didn't update anything
-                    $refetch = false;
-                }
+        return Manager::save($this, array($this, '__commit'), array($refetch));
+    }
+
+    /**
+     * Callback handling post-save items. This object has access to the
+     * executor used to save the object and performs updates to related
+     * objects after possibly refetching updated data for the local
+     * hashtable.
+     */
+    function __commit($ex, $refetch) {
+        $pk = static::getMeta('pk');
+        $wasnew = $this->__new__;
+        $rows = $ex->affected_rows();
+
+        if ($rows != 1) {
+            // This doesn't really signify an error. It just means that
+            // the database believes that the row did not change. For
+            // inserts though, it's a deal breaker
+            if ($wasnew) {
+                return false;
             }
-        }
-        catch (Exception\OrmError $e) {
-            return false;
+            else {
+                // No need to reload the record if requested — the
+                // database didn't update anything
+                $refetch = false;
+            }
         }
 
         if ($wasnew) {
@@ -361,6 +363,7 @@ implements \JsonSerializable {
             $data = array('dirty' => $this->__dirty__);
             Signal::send('model.updated', $this, $data);
         }
+
         # Refetch row from database
         if ($refetch) {
             // Preserve non database information such as list relationships
@@ -369,6 +372,7 @@ implements \JsonSerializable {
                 + $this->__ht__;
             // TODO: Cache $this object
         }
+
         if ($wasnew) {
             // Attempt to update foreign, unsaved objects with the PK of
             // this newly created object
@@ -392,19 +396,16 @@ implements \JsonSerializable {
             }
             $this->__onsave();
         }
+
         $this->__dirty__ = array();
-        return true;
     }
 
-    static function create($ht=false) {
-        if (!$ht) $ht=array();
-        $class = get_called_class();
-        $i = new $class(array());
-        $i->__new__ = true;
-        foreach ($ht as $field=>$value)
-            if (!is_array($value))
-                $i->set($field, $value);
-        return $i;
+    /**
+     * Called when this object is participating in a transaction which was
+     * rolled back. Any changes marked for commit locally should be
+     * reverted.
+     */
+    function __rollback() {
     }
 
     private function getPk() {

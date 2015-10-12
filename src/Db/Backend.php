@@ -26,4 +26,15 @@ abstract class Backend {
         $exec->execute();
         return $exec;
     }
+
+    // Transaction interface
+    abstract function rollback();
+    abstract function commit();
+    abstract function beginTransaction();
+
+    // Backend must implement DistributedTransaction if able to participate
+    function startDistributed() {
+        if (!$this instanceof DistributedTransaction)
+            throw new Exception\OrmError('Database backend does not support distributed transactions. You cannot combine objects from multiple backends in a transaction with this backend');
+    }
 }

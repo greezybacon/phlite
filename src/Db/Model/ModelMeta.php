@@ -199,17 +199,14 @@ class ModelMeta implements \ArrayAccess {
      * default constructor free to assume new object status.
      */
     function newInstance($props=false) {
-        static $sers = array();
+        static $classes = array();
 
-        if (!isset($sers[$this->model])) {
-            $sers[$this->model] = sprintf(
-                'O:%d:"%s":0:{}',
-                strlen($this->model), $this->model
-            );
+        if (!isset($classes[$this->model])) {
+            $classes[$this->model] = new \ReflectionClass($this->model);
         }
         // TODO: Compare timing between unserialize() and
         //       ReflectionClass::newInstanceWithoutConstructor
-        $instance = unserialize($sers[$this->model]);
+        $instance = $classes[$this->model]->newInstanceWithoutConstructor();
         // Hydrate if props were included
         if (is_array($props)) {
             $instance->__ht__ = $props;

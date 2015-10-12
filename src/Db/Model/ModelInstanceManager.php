@@ -80,18 +80,12 @@ class ModelInstanceManager extends ResultSet {
         // Check the cache for the model instance first
         if (!($m = self::checkCache($modelClass, $fields))) {
             // Construct and cache the object
-            $m = new $modelClass($fields);
+            $m = $modelClass::getMeta()->newInstance($fields);
             // XXX: defer may refer to fields not in this model
             $m->__deferred__ = $this->queryset->defer;
             $m->__onload();
             if ($cache)
                 $this->cache($m);
-        }
-        elseif (get_class($m) != $modelClass) {
-            // Change the class of the object to be returned to match what
-            // was expected
-            // TODO: Emit a warning?
-            $m = new $modelClass($m->ht);
         }
         // Wrap annotations in an AnnotatedModel
         if ($extras) {
@@ -143,7 +137,7 @@ class ModelInstanceManager extends ResultSet {
                             break;
                     }
                     if ($m)
-                        $m->set($tail, $this->getOrBuild($model_class, $record));
+                        $m->__ht__[$tail] = $this->getOrBuild($model_class, $record);
                 }
                 $offset += count($fields);
             }
